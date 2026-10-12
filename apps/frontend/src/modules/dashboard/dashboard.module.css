@@ -1,0 +1,1213 @@
+/* VERTEX Dashboard — CSS variables & responsive layout
+ *
+ * Layout modes:
+ *   Mobile portrait   (default)                               → single column, page scrolls
+ *   Phone landscape   (orientation: landscape, height ≤ 500)  → 2 columns, page scrolls
+ *   Desktop           (width ≥ 768 and height ≥ 501)          → sidebar + grid locked to 100vh, no scroll
+ *   Desktop compact   (desktop and height ≤ 760)              → tighter spacing so cards still fit
+ *   Desktop large     (width ≥ 1440 and height ≥ 860)         → roomier spacing, bigger donut
+ *   768–1099 wide     both card rows split 6/6 instead of 5/7
+ */
+
+:root {
+  --vx-primary: #1F3864;
+  --vx-secondary: #2E75B6;
+  --vx-accent: #D6E4F0;
+  --vx-success: #2196F3;
+  --vx-warning: #FF9800;
+  --vx-neutral: #F5F5F5;
+  --vx-text: #1A1A1A;
+  --vx-text-muted: #757575;
+  --vx-border: #E0E0E0;
+  --vx-white: #FFFFFF;
+  --vx-sidebar-width: 200px;
+  --vx-header-height: 56px;
+  --vx-radius: 8px;
+  --vx-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --vx-touch-target: 44px;
+  --vx-gap: 16px;
+  --vx-card-padding: 16px;
+}
+
+/* ── Layout shell ─────────────────────────────────────────── */
+.dashboard {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--vx-neutral);
+  color: var(--vx-text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Desktop: sidebar + content, exactly one viewport tall */
+@media (min-width: 768px) and (min-height: 501px) {
+  .dashboard {
+    flex-direction: row;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+  }
+}
+
+/* ── Sidebar (desktop only) ───────────────────────────────── */
+.sidebar {
+  display: none;
+  width: var(--vx-sidebar-width);
+  background: var(--vx-primary);
+  color: var(--vx-white);
+  flex-shrink: 0;
+  padding: 20px 0;
+  height: 100%;
+  overflow-y: auto;
+}
+
+@media (min-width: 768px) and (min-height: 501px) {
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+.sidebarLogo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 20px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  margin-bottom: 16px;
+}
+
+.logoMark {
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: -0.5px;
+}
+
+.logoText {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.sidebarNav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 12px;
+}
+
+.sidebarItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, color 0.15s;
+}
+
+.sidebarItem:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--vx-white);
+}
+
+.sidebarItemActive {
+  background: rgba(255, 255, 255, 0.18);
+  color: var(--vx-white);
+  font-weight: 600;
+}
+
+.sidebarIcon {
+  font-size: 18px;
+  width: 24px;
+  text-align: center;
+}
+
+/* ── Mobile header (portrait + landscape phones) ──────────── */
+.mobileHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 0 0 12px;
+  background: var(--vx-white);
+  border-bottom: 1px solid var(--vx-border);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  height: var(--vx-header-height);
+  flex-shrink: 0;
+}
+
+@media (min-width: 768px) and (min-height: 501px) {
+  .mobileHeader {
+    display: none;
+  }
+}
+
+.mobileLogo {
+  width: 40px;
+  height: 40px;
+  background: var(--vx-primary);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--vx-white);
+  font-weight: 700;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+/* ── Nav tabs (mobile horizontal scroll) ──────────────────── */
+.navTabs {
+  display: flex;
+  align-items: stretch;
+  align-self: stretch;
+  gap: 2px;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: 12px;
+  padding-right: 12px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  flex: 1;
+}
+
+.navTabs::-webkit-scrollbar {
+  display: none;
+}
+
+.navTab {
+  flex-shrink: 0;
+  min-height: var(--vx-touch-target);
+  min-width: var(--vx-touch-target);
+  padding: 0 14px;
+  border: none;
+  background: transparent;
+  color: var(--vx-text-muted);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  white-space: nowrap;
+  scroll-snap-align: start;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+@media (hover: hover) {
+  .navTab:hover {
+    color: var(--vx-primary);
+  }
+}
+
+.navTab:active {
+  background: var(--vx-neutral);
+}
+
+.navTab:focus-visible {
+  outline: 2px solid var(--vx-secondary);
+  outline-offset: -2px;
+}
+
+.navTabActive {
+  color: var(--vx-primary);
+  font-weight: 700;
+  border-bottom-color: var(--vx-primary);
+}
+
+/* ── Main content area ────────────────────────────────────── */
+.main {
+  flex: 1;
+  min-width: 0;
+  padding: 12px;
+  max-width: 1680px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* Desktop: main is a column that hands all leftover height to the grid */
+@media (min-width: 768px) and (min-height: 501px) {
+  .main {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
+    padding: 24px;
+  }
+}
+
+/* ── Page title (desktop) ─────────────────────────────────── */
+.pageTitle {
+  display: none;
+  margin-bottom: 16px;
+}
+
+@media (min-width: 768px) and (min-height: 501px) {
+  .pageTitle {
+    display: block;
+    flex-shrink: 0;
+  }
+}
+
+.pageTitle h1 {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--vx-primary);
+  margin: 0;
+}
+
+/* ── Grid layouts ─────────────────────────────────────────── */
+/* Mobile portrait: vertical stack, every card full width */
+.grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-gap);
+}
+
+.grid > * {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Phone landscape: two columns, page scrolls */
+@media (orientation: landscape) and (max-height: 500px) {
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .col12 {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Desktop: 12-col grid; the two rows share the height (top row, which also
+   holds the selectors / variable picker, slightly taller) */
+@media (min-width: 768px) and (min-height: 501px) {
+  .grid {
+    --vx-gap: 20px;
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-template-rows: minmax(0, 1.3fr) minmax(0, 1fr);
+    gap: var(--vx-gap);
+  }
+
+  .grid > * {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Each card takes what is left of its grid cell (below any controls) and
+     shrinks with it */
+  .grid > * > .card {
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .col4 {
+    grid-column: span 4;
+  }
+
+  .col5 {
+    grid-column: span 5;
+  }
+
+  .col7 {
+    grid-column: span 7;
+  }
+
+  .col12 {
+    grid-column: span 12;
+  }
+}
+
+/* Tablet / small laptop: a 5/7 split leaves the donut and bars cards too
+   narrow, so both rows split evenly */
+@media (min-width: 768px) and (max-width: 1099px) and (min-height: 501px) {
+  .col5,
+  .col7 {
+    grid-column: span 6;
+  }
+}
+
+/* Tablet portrait: plenty of height but little width, so the donut column
+   (three blocks + one-row legend need width) and the trend column get
+   full-width rows. Children of .grid in DOM order: 1 donut column,
+   2 trend column, 3 bars, 4 map → rows: donut / trend / bars + map */
+@media (min-width: 768px) and (max-width: 1099px) and (min-height: 501px) and (orientation: portrait) {
+  .grid {
+    grid-template-rows: minmax(0, 1.2fr) minmax(0, 1.1fr) minmax(0, 0.8fr);
+  }
+
+  .grid > :nth-child(1) {
+    grid-area: 1 / 1 / 2 / 13;
+  }
+
+  .grid > :nth-child(2) {
+    grid-area: 2 / 1 / 3 / 13;
+  }
+
+  .grid > :nth-child(3) {
+    grid-area: 3 / 1 / 4 / 7;
+  }
+
+  .grid > :nth-child(4) {
+    grid-area: 3 / 7 / 4 / 13;
+  }
+}
+
+/* Column with controls on top of its card (donut and trend columns):
+   4px between the controls and the card */
+.colStack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.colStack > :not(.card) {
+  flex-shrink: 0;
+}
+
+/* KPI row (KpiRow.tsx — not currently rendered on the dashboard) */
+.kpiRow {
+  display: flex;
+  background: var(--vx-white);
+  border-radius: var(--vx-radius);
+  box-shadow: 0 2px 12px rgba(46, 117, 182, 0.35);
+  overflow: hidden;
+}
+
+.kpiCard {
+  flex: 1;
+  min-width: 0;
+  padding: 16px 12px;
+  text-align: center;
+  position: relative;
+}
+
+.kpiCard + .kpiCard::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 20%;
+  height: 60%;
+  width: 1px;
+  background: var(--vx-border);
+}
+
+.kpiValue {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--vx-text);
+  line-height: 1.2;
+}
+
+.kpiLabel {
+  font-size: 12px;
+  color: var(--vx-text-muted);
+  margin-top: 4px;
+}
+
+/* ── Donut filters (CERO + período selectors) ─────────────── */
+/* Mobile: stacked, full width */
+.filters {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0;
+}
+
+.filterField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.filterLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--vx-text-muted);
+}
+
+.filterSelect {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  min-height: var(--vx-touch-target);
+  padding: 0 36px 0 12px;
+  /* Layers: chevron (in --vx-primary, matching the text) on top of a soft
+     horizontal gradient: white edges with a faint blue glow in the middle */
+  background-color: var(--vx-white);
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%231F3864' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"),
+    linear-gradient(to right, #FFFFFF 0%, #EEF5FB 50%, #FFFFFF 100%);
+  background-repeat: no-repeat, no-repeat;
+  background-position: right 12px center, 0 0;
+  background-size: auto, 100% 100%;
+  border: 1px solid #C8DCF0;
+  border-radius: 6px;
+  color: var(--vx-primary);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.filterSelect:focus {
+  outline: none;
+  border-color: var(--vx-secondary);
+  box-shadow: 0 0 0 3px rgba(46, 117, 182, 0.15);
+}
+
+/* Desktop: side by side, each selector 50% of the donut column */
+@media (min-width: 768px) and (min-height: 501px) {
+  .filters {
+    flex-direction: row;
+    align-items: flex-end;
+    gap: 4px;
+  }
+
+  .filterField {
+    flex: 1 1 0;
+  }
+
+  .filterSelect {
+    min-height: 38px;
+  }
+}
+
+/* ── Trend variable picker (radio row above the trend card) ─ */
+/* Same structure and height as a selector: small label + one 38px row
+   (44px touch rows on phones, where the options wrap) */
+.variablePicker {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.variablePicker > legend {
+  padding: 0;
+  margin-bottom: 4px;
+}
+
+.variableOptions {
+  container-type: inline-size;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.variableOption {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--vx-touch-target);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid #C8DCF0;
+  border-radius: 6px;
+  background: linear-gradient(to right, #FFFFFF 0%, #EEF5FB 50%, #FFFFFF 100%);
+  color: var(--vx-primary);
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+
+.variableOption > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.variableOption input {
+  flex-shrink: 0;
+  margin: 0;
+  accent-color: var(--vx-secondary);
+}
+
+.variableOption:has(input:checked) {
+  border-color: var(--vx-secondary);
+  background: #EEF5FB;
+  font-weight: 700;
+}
+
+.variableOption:has(input:focus-visible) {
+  border-color: var(--vx-secondary);
+  box-shadow: 0 0 0 3px rgba(46, 117, 182, 0.15);
+}
+
+/* Desktop: one row across the full column, each option the same width */
+@media (min-width: 768px) and (min-height: 501px) {
+  .variableOptions {
+    flex-wrap: nowrap;
+  }
+
+  .variableOption {
+    flex: 1 1 0;
+    min-height: 38px;
+    padding: 0 6px;
+    gap: 5px;
+    font-size: clamp(10px, 2.1cqi, 13px);
+  }
+}
+
+/* Narrow row: drop the units from the option labels (the chart title keeps
+   the unit) so the names fit */
+@container (max-width: 800px) {
+  .variableUnit {
+    display: none;
+  }
+}
+
+/* Very narrow row (e.g. 1024px laptops): hide the radio circle too; the
+   selected option is still shown by its border and background, and the
+   input stays focusable for keyboard and screen readers */
+@container (max-width: 480px) {
+  .variableOption input {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+    pointer-events: none;
+  }
+}
+
+/* Phone landscape: CERO + período selectors over the donut (left), variable
+   radios over the trend (right), as on desktop. The radios use two
+   rows lined up with the two selectors: with 16px labels and 44px controls,
+   the CERO select starts 20px down and the período select 88px down, so the
+   radio rows sit at the same offsets with a 24px row gap
+   (4px gap + 16px label + 4px gap). */
+@media (orientation: landscape) and (max-width: 932px) and (max-height: 500px) {
+  /* Both columns as tall as the taller one; each card fills what its
+     controls leave, and the trend chart grows into the extra height */
+  .grid {
+    align-items: stretch;
+  }
+
+  .grid > * > .card {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .trendChart {
+    flex: 1 0 auto;
+  }
+
+  .filterLabel {
+    line-height: 16px;
+  }
+
+  .variableOptions {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 24px 4px;
+  }
+
+  .variableOption {
+    padding: 0 4px;
+    font-size: clamp(10px, 3.1cqi, 13px);
+  }
+
+  /* Producción, alone on the second row, spans the four columns */
+  .variableOption:last-child {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ── Card block (donut, bars, map, trend) ──────────────────── */
+.card {
+  background: var(--vx-white);
+  border-radius: var(--vx-radius);
+  box-shadow: 0 2px 12px rgba(46, 117, 182, 0.35);
+  padding: var(--vx-card-padding);
+}
+
+.cardTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--vx-text-muted);
+  margin: 0 0 12px;
+  text-transform: none;
+  flex-shrink: 0;
+}
+
+/* ── Donut card ───────────────────────────────────────────── */
+/* Body = motor info | donut | time-unit picker in one row (portrait,
+   landscape and desktop), legend underneath */
+.donutBody {
+  /* Height of each time-unit option; also sizes .motorInfo */
+  --vx-unit-row: 32px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Exactly as tall as .unitPicker (18px title + 4 option rows, no gaps), so
+   Producto lines up with "Unidad" at the top and Línea with the last unit
+   option at the bottom; both panels are centered beside the donut */
+.motorInfo {
+  flex: 0 1 auto;
+  height: calc(18px + 4 * var(--vx-unit-row));
+  max-width: 32%;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.motorInfoRow {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.motorInfoRow dt {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--vx-text-muted);
+}
+
+.motorInfoRow dd {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--vx-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.donutWrap {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+.donutChart {
+  width: min(200px, 100%);
+  aspect-ratio: 1;
+  position: relative;
+  container-type: inline-size;
+}
+
+.donutChart svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.donutCenter {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+}
+
+.donutValue {
+  font-size: clamp(14px, 13cqi, 26px);
+  font-weight: 700;
+  color: var(--vx-text);
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.donutLabel {
+  font-size: clamp(9px, 5.5cqi, 11px);
+  color: var(--vx-text-muted);
+  margin-top: 2px;
+}
+
+.unitPicker {
+  flex: 0 0 auto;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* 14px line + 4px margin = the 18px .motorInfo's height accounts for */
+.unitPickerTitle {
+  padding: 0;
+  margin-bottom: 4px;
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 600;
+  color: var(--vx-text-muted);
+}
+
+.unitOption {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--vx-unit-row);
+  font-size: 13px;
+  color: var(--vx-text);
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.unitOption input {
+  margin: 0;
+  accent-color: var(--vx-secondary);
+}
+
+/* Legend always on one row: it is its own width container so the items
+   can size their text from the legend's actual width (see .legendItem) */
+.donutLegend {
+  container-type: inline-size;
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0 12px;
+  margin-top: 16px;
+  width: 100%;
+}
+
+/* Phone landscape: motor info | donut | units in one row, as on desktop,
+   with a smaller donut so the card is not taller than the screen */
+@media (orientation: landscape) and (max-height: 500px) {
+  .donutBody {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .motorInfo {
+    flex: 0 1 auto;
+    max-width: 32%;
+  }
+
+  .donutWrap {
+    flex: 1 1 0;
+  }
+
+  .unitPicker {
+    flex: 0 0 auto;
+  }
+
+  .donutChart {
+    width: min(160px, 100%);
+  }
+}
+
+/* Desktop: the three blocks side by side; the donut takes the largest
+   square that fits between the side blocks and above the legend (capped at
+   220px, 300px on large screens) */
+@media (min-width: 768px) and (min-height: 501px) {
+  .donutBody {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    --vx-unit-row: 24px;
+  }
+
+  .motorInfo {
+    flex: 0 1 auto;
+    max-width: 32%;
+  }
+
+  .donutWrap {
+    flex: 1 1 0;
+    align-self: stretch;
+    min-height: 0;
+    container-type: size;
+  }
+
+  .donutChart {
+    width: min(var(--vx-donut-max, 220px), 100cqw, 100cqh);
+    flex-shrink: 0;
+  }
+
+  .unitPicker {
+    flex: 0 0 auto;
+  }
+
+  .donutLegend {
+    margin-top: 10px;
+    flex-shrink: 0;
+  }
+}
+
+/* Font scales with the legend width so the 4 items always fit one row.
+   Fixed space: 4 × 10px dots + 3 × 12px legend gap + 8 × 6px item padding
+   = 124px. Text (Encend./Apagado/Evento/Mtto. + value + unit + dot gaps)
+   ≈ 28.3em in the widest case (weeks, e.g. "13,6 sem" with CERO-012 +
+   6 meses); dividing by 30 leaves a ~6% safety margin. Capped at 13px. */
+.legendItem {
+  display: flex;
+  align-items: center;
+  flex: 0 1 auto;
+  min-width: 0;
+  gap: 0.4em;
+  padding-inline: 6px;
+  font-size: clamp(4px, calc((100cqi - 124px) / 30), 13px);
+  white-space: nowrap;
+}
+
+.legendDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.legendLabel {
+  color: var(--vx-text-muted);
+}
+
+.legendValue {
+  font-weight: 600;
+  color: var(--vx-text);
+}
+
+/* Phones (everything that is not desktop mode): tighter spacing and smaller
+   dots so the text can stay ≥ 9px. Fixed space: 4 × 6px dots + 3 × 4px gap
+   + 8 × 2px padding = 52px. With the short phone suffixes (h/d/s/m) and a
+   0.3em dot-text gap the widest text measures 26.6em (CERO-012, 6 meses,
+   hours); ÷ 27.4 leaves a ~3% safety margin. */
+@media not all and (min-width: 768px) and (min-height: 501px) {
+  .donutLegend {
+    gap: 0 4px;
+  }
+
+  .legendItem {
+    padding-inline: 2px;
+    gap: 0.3em;
+    font-size: clamp(9px, calc((100cqi - 52px) / 27.4), 13px);
+  }
+
+  .legendDot {
+    width: 6px;
+    height: 6px;
+  }
+}
+
+/* ── Horizontal bars ──────────────────────────────────────── */
+.barList {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  container-type: inline-size;
+}
+
+.barRow {
+  display: grid;
+  grid-template-columns: minmax(80px, 100px) minmax(0, 1fr) 48px;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Narrow card (e.g. tablet portrait): label + value on top, full-width bar below */
+@container (max-width: 280px) {
+  .barRow {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px 8px;
+  }
+
+  .barTrack {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+
+/* Desktop: rows grouped in the middle of the card with a spacing that grows
+   with the window but never drifts apart (squeezes when short) */
+@media (min-width: 768px) and (min-height: 501px) {
+  .barList {
+    flex: 1;
+    min-height: 0;
+    justify-content: center;
+    gap: clamp(8px, 2.6vh, 28px);
+  }
+}
+
+.barLabel {
+  font-size: 13px;
+  color: var(--vx-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.barTrack {
+  height: 14px;
+  background: var(--vx-accent);
+  border-radius: 7px;
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  border-radius: 7px;
+  transition: width 0.4s ease;
+}
+
+.barValue {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--vx-text);
+  text-align: right;
+}
+
+/* ── Trend line chart ─────────────────────────────────────── */
+/* Mobile: box follows the SVG's 400×180 ratio so there is no empty band */
+.trendChart {
+  width: 100%;
+  aspect-ratio: 400 / 180;
+  max-height: 220px;
+}
+
+/* Desktop: chart takes the card's remaining height (SVG keeps its ratio) */
+@media (min-width: 768px) and (min-height: 501px) {
+  .trendChart {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+    aspect-ratio: auto;
+  }
+}
+
+/* ── Map placeholder ──────────────────────────────────────── */
+.mapPlaceholder {
+  width: 100%;
+  height: 200px;
+  background: linear-gradient(135deg, var(--vx-accent) 0%, #e8f0f8 100%);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--vx-text-muted);
+  font-size: 14px;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.mapPlaceholder span {
+  font-size: 28px;
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .mapPlaceholder {
+    height: 160px;
+  }
+}
+
+@media (min-width: 768px) and (min-height: 501px) {
+  .mapPlaceholder {
+    flex: 1;
+    min-height: 0;
+    height: auto;
+  }
+}
+
+/* ── Motor badge ──────────────────────────────────────────── */
+.motorBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  background: var(--vx-accent);
+  color: var(--vx-primary);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 20px;
+  margin-bottom: 8px;
+}
+
+/* Mobile-only helper */
+.mobileOnly {
+  display: inline-flex;
+  margin-bottom: 12px;
+}
+
+@media (min-width: 768px) and (min-height: 501px) {
+  .mobileOnly {
+    display: none;
+  }
+}
+
+/* ── Narrow phones (portrait ≤ 360px) ─────────────────────── */
+@media (max-width: 360px) {
+  .kpiCard {
+    padding: 12px 6px;
+  }
+
+  .kpiValue {
+    font-size: 18px;
+  }
+
+  .kpiLabel {
+    font-size: 11px;
+  }
+}
+
+/* ── Desktop compact (short windows, e.g. 1366×768 laptops) ── */
+@media (min-width: 768px) and (min-height: 501px) and (max-height: 760px) {
+  .main {
+    padding: 16px 20px;
+  }
+
+  .pageTitle {
+    margin-bottom: 10px;
+  }
+
+  .pageTitle h1 {
+    font-size: 18px;
+  }
+
+  .motorBadge {
+    margin-bottom: 4px;
+    padding: 2px 10px;
+  }
+
+  .grid {
+    --vx-gap: 12px;
+  }
+
+  .card {
+    --vx-card-padding: 12px;
+  }
+
+  .cardTitle {
+    margin-bottom: 6px;
+  }
+
+  .kpiCard {
+    padding: 10px 12px;
+  }
+
+  .kpiValue {
+    font-size: 19px;
+  }
+
+  .kpiLabel {
+    margin-top: 2px;
+  }
+
+  .donutLegend {
+    margin-top: 6px;
+  }
+
+  .motorInfoRow dd,
+  .unitOption {
+    font-size: 12px;
+  }
+
+  .donutBody {
+    --vx-unit-row: 20px;
+  }
+}
+
+/* ── Desktop large (≥ 1440 × 860, e.g. 1920×1080) ──────────── */
+/* More breathing room and a bigger donut so cards don't look empty */
+@media (min-width: 1440px) and (min-height: 860px) {
+  .main {
+    padding: 32px 40px;
+  }
+
+  .pageTitle {
+    margin-bottom: 20px;
+  }
+
+  .pageTitle h1 {
+    font-size: 26px;
+  }
+
+  .grid {
+    --vx-gap: 24px;
+  }
+
+  .card {
+    --vx-card-padding: 24px;
+  }
+
+  .cardTitle {
+    font-size: 15px;
+    margin-bottom: 16px;
+  }
+
+  .kpiCard {
+    padding: 20px 16px;
+  }
+
+  .kpiValue {
+    font-size: 28px;
+  }
+
+  .kpiLabel {
+    font-size: 13px;
+  }
+
+  .donutWrap {
+    --vx-donut-max: 300px;
+  }
+
+  .motorInfoRow dd,
+  .unitOption {
+    font-size: 14px;
+  }
+
+  .barLabel,
+  .barValue {
+    font-size: 14px;
+  }
+
+  .barTrack {
+    height: 16px;
+    border-radius: 8px;
+  }
+}

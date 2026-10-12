@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff">
+  <title>Dashboard - Inicio</title>
+  <style>
+    :root {
+      --azul: #244b9b;
+      --azul-claro: #eaf0ff;
+      --texto: #202638;
+      --fondo: #ffffff;
+      --borde: #dce2ed;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; background: var(--fondo); color: var(--texto); font-family: Arial, Helvetica, sans-serif; }
+    body { min-height: 100vh; }
+    .app {
+      min-height: 100vh;
+      padding: max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
+      background: #fff;
+    }
+    .top-layout {
+      display: flex;
+      align-items: stretch;
+      gap: 8px;
+      width: 100%;
+    }
+    .logo-slot {
+      flex: 0 0 64px;
+      width: 64px;
+      min-height: 40px;
+      border: 1px solid var(--borde);
+      border-bottom: 4px solid var(--azul);
+      border-radius: 9px 9px 3px 3px;
+      background: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .logo-slot img { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
+    .nav-buttons {
+      display: flex;
+      flex: 1 1 auto;
+      gap: 4px;
+      align-items: stretch;
+      min-width: 0;
+    }
+    .nav-button {
+      appearance: none;
+      border: 1px solid var(--borde);
+      border-bottom: 4px solid var(--azul);
+      border-radius: 9px 9px 3px 3px;
+      background: #fff;
+      color: #24324d;
+      flex: 1 1 0;
+      min-width: 0;
+      height: 40px;
+      padding: 2px 3px 3px;
+      font-size: clamp(7px, 2vw, 10px);
+      line-height: 1.05;
+      font-weight: 600;
+      text-align: center;
+      overflow-wrap: anywhere;
+      cursor: pointer;
+    }
+    .nav-button[aria-pressed="true"] { background: var(--azul-claro); border-color: #cbd7f5; border-bottom-color: var(--azul); }
+    .nav-button:focus-visible { outline: 2px solid #6f91df; outline-offset: 2px; }
+    
+/* CELULAR VERTICAL: logo y botones en la parte superior */
+@media (orientation: portrait) {
+  .top-layout {
+    flex-direction: row;
+    align-items: stretch;
+  }
+
+  .logo-slot {
+    flex: 0 0 52px;
+    width: 52px;
+    height: 40px;
+  }
+
+  .nav-buttons {
+    flex-direction: row;
+    flex: 1 1 auto;
+    gap: 4px;
+  }
+
+  .nav-button {
+    flex: 1 1 0;
+    width: auto;
+    height: 40px;
+    font-size: clamp(7px, 2vw, 10px);
+  }
+}
+
+/* CELULAR HORIZONTAL: logo arriba y botones a la izquierda */
+@media (orientation: landscape) {
+  .top-layout {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .logo-slot {
+    flex: 0 0 48px;
+    width: 100%;
+    height: 48px;
+  }
+
+  .nav-buttons {
+    flex: none;
+    flex-direction: column;
+    width: 110px;
+    gap: 5px;
+  }
+
+  .nav-button {
+    flex: none;
+    width: 110px;
+    height: 38px;
+    font-size: 9px;
+    padding: 2px 4px;
+  }
+}
+
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="top-layout" aria-label="Navegación principal">
+      <div class="logo-slot" aria-label="Espacio reservado para el logo corporativo" title="Espacio reservado para el logo corporativo">
+        <!-- Coloca aquí el logo cuando esté disponible: <img src="logo.png" alt="Logo corporativo"> -->
+      </div>
+      <nav class="nav-buttons" aria-label="Secciones del dashboard">
+        <button class="nav-button" type="button" aria-pressed="true">Sales Overview</button>
+        <button class="nav-button" type="button" aria-pressed="false">Customer Analysis</button>
+        <button class="nav-button" type="button" aria-pressed="false">Reseller Analysis</button>
+        <button class="nav-button" type="button" aria-pressed="false">Region Overview</button>
+      </nav>
+    </header>
+  </main>
+  <script>
+    const buttons = [...document.querySelectorAll('.nav-button')];
+    buttons.forEach(button => button.addEventListener('click', () => {
+      buttons.forEach(item => item.setAttribute('aria-pressed', String(item === button)));
+    }));
+  </script>
+</body>
+</html>
