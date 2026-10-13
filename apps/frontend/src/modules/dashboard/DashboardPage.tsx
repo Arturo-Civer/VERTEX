@@ -6,13 +6,18 @@ import { DonutPanel } from './DonutPanel';
 import { simulateDonut } from './donutSimulation';
 import type { CeroId, PeriodId } from './donutSimulation';
 import { HorizontalBars } from './HorizontalBars';
+import { LogoutIcon } from './LogoutIcon';
 import { NavTabs } from './NavTabs';
 import { Sidebar } from './Sidebar';
 import { TrendChart } from './TrendChart';
 import { TrendVariablePicker } from './TrendVariablePicker';
 import styles from './dashboard.module.css';
 
-export function DashboardPage() {
+interface DashboardPageProps {
+  onLogout: () => void;
+}
+
+export function DashboardPage({ onLogout }: DashboardPageProps) {
   const [activeTab, setActiveTab] = useState<NavTabId>('resumen');
   const [cero, setCero] = useState<CeroId>('CERO-010');
   const [period, setPeriod] = useState<PeriodId>('month');
@@ -27,12 +32,21 @@ export function DashboardPage() {
   return (
     <div className={styles.dashboard}>
       {/* Desktop sidebar */}
-      <Sidebar tabs={NAV_TABS} active={activeTab} onChange={setActiveTab} />
+      <Sidebar tabs={NAV_TABS} active={activeTab} onChange={setActiveTab} onLogout={onLogout} />
 
       {/* Mobile header + tabs */}
       <header className={styles.mobileHeader}>
         <div className={styles.mobileLogo}>VX</div>
         <NavTabs tabs={NAV_TABS} active={activeTab} onChange={setActiveTab} />
+        <button
+          type="button"
+          className={styles.mobileLogout}
+          onClick={onLogout}
+          aria-label="Cerrar sesión"
+          title="Cerrar sesión"
+        >
+          <LogoutIcon />
+        </button>
       </header>
 
       <main className={styles.main}>

@@ -1,0 +1,363 @@
+/* VERTEX sign-in screen. Uses the --vx-* variables defined in
+ * dashboard.module.css. Same layout modes as the dashboard:
+ *   Phones (default)  → no brand panel, logo inside a flat card on --vx-neutral
+ *   Phone landscape   (orientation: landscape, height ≤ 500) → reduced paddings
+ *   Desktop           (width ≥ 768 and height ≥ 501) → 420px brand panel + card
+ */
+
+.page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  background: var(--vx-neutral);
+  color: var(--vx-text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* ── Brand panel (desktop only) ───────────────────────────── */
+.brandPanel {
+  display: none;
+  width: 420px;
+  flex-shrink: 0;
+  flex-direction: column;
+  padding: 40px;
+  background: var(--vx-primary);
+  color: var(--vx-white);
+}
+
+.brandBody {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.brandSubtitle {
+  margin: 0 0 28px;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.features {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.feature {
+  position: relative;
+  padding-left: 22px;
+  font-size: 15px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.feature::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.5em;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--vx-secondary);
+}
+
+.brandFooter {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* ── Logo ─────────────────────────────────────────────────── */
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logoMark {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--vx-radius);
+  background: rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.logoText {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+/* On the white card: solid mark, title in the primary color */
+.logoDark .logoMark {
+  background: var(--vx-primary);
+  color: var(--vx-white);
+}
+
+.logoDark .logoText {
+  color: var(--vx-primary);
+}
+
+/* ── Form panel + card ────────────────────────────────────── */
+.formPanel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+}
+
+/* Phones: flat card (no shadow) on the neutral background */
+.card {
+  width: 100%;
+  max-width: 400px;
+  background: var(--vx-white);
+  border-radius: var(--vx-radius);
+  padding: 28px 20px;
+}
+
+.cardLogo {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+/* ── Form ─────────────────────────────────────────────────── */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.formHeader {
+  margin-bottom: 4px;
+}
+
+.title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--vx-primary);
+}
+
+.subtitle {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: var(--vx-text-muted);
+}
+
+.errorBanner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid #F5C2C0;
+  border-radius: 6px;
+  background: #FDECEA;
+  color: #C62828;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.errorBanner svg {
+  flex-shrink: 0;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--vx-text);
+}
+
+.input {
+  width: 100%;
+  min-height: var(--vx-touch-target);
+  padding: 0 12px;
+  border: 1px solid var(--vx-border);
+  border-radius: 6px;
+  background: var(--vx-white);
+  color: var(--vx-text);
+  font: inherit;
+  /* 16px keeps iOS Safari from zooming into the field on focus */
+  font-size: 16px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.input::placeholder {
+  color: #A0A0A0;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--vx-secondary);
+  box-shadow: 0 0 0 3px rgba(46, 117, 182, 0.15);
+}
+
+.input:disabled {
+  background: var(--vx-neutral);
+  color: var(--vx-text-muted);
+  cursor: not-allowed;
+}
+
+.passwordWrap {
+  position: relative;
+}
+
+/* Room for the eye button */
+.passwordInput {
+  padding-right: 48px;
+}
+
+.eyeButton {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: var(--vx-touch-target);
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 0 6px 6px 0;
+  background: transparent;
+  color: var(--vx-text-muted);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.eyeButton:hover:not(:disabled) {
+  color: var(--vx-primary);
+}
+
+.eyeButton:focus-visible {
+  outline: 2px solid var(--vx-secondary);
+  outline-offset: -2px;
+}
+
+.eyeButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.submit {
+  margin-top: 4px;
+  min-height: var(--vx-touch-target);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--vx-secondary);
+  color: var(--vx-white);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background 0.15s;
+}
+
+.submit:hover:not(:disabled) {
+  background: var(--vx-primary);
+}
+
+.submit:focus-visible {
+  outline: 2px solid var(--vx-primary);
+  outline-offset: 2px;
+}
+
+.submit:disabled {
+  cursor: progress;
+  opacity: 0.85;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: var(--vx-white);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2s;
+  }
+}
+
+/* ── Phone landscape: reduced paddings so the form fits the short screen ─ */
+@media (orientation: landscape) and (max-height: 500px) {
+  .formPanel {
+    padding: 12px 16px;
+  }
+
+  .card {
+    padding: 16px 20px;
+  }
+
+  .cardLogo {
+    margin-bottom: 12px;
+  }
+
+  .form {
+    gap: 10px;
+  }
+
+  .formHeader {
+    margin-bottom: 0;
+  }
+
+  .title {
+    font-size: 19px;
+  }
+
+  .subtitle {
+    margin-top: 2px;
+  }
+}
+
+/* ── Desktop: brand panel + card with shadow ──────────────── */
+@media (min-width: 768px) and (min-height: 501px) {
+  .brandPanel {
+    display: flex;
+  }
+
+  .formPanel {
+    padding: 40px;
+  }
+
+  .card {
+    padding: 40px 36px;
+    box-shadow: 0 2px 12px rgba(46, 117, 182, 0.35);
+  }
+
+  .cardLogo {
+    display: none;
+  }
+}

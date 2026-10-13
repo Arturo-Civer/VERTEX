@@ -1,13 +1,15 @@
 import type { NavTab, NavTabId } from '../../contracts/dashboard';
+import { LogoutIcon } from './LogoutIcon';
 import styles from './dashboard.module.css';
 
 interface SidebarProps {
   tabs: NavTab[];
   active: NavTabId;
   onChange: (id: NavTabId) => void;
+  onLogout: () => void;
 }
 
-export function Sidebar({ tabs, active, onChange }: SidebarProps) {
+export function Sidebar({ tabs, active, onChange, onLogout }: SidebarProps) {
   return (
     <aside className={styles.sidebar}>
       <div className={styles.sidebarLogo}>
@@ -27,6 +29,10 @@ export function Sidebar({ tabs, active, onChange }: SidebarProps) {
           </button>
         ))}
       </nav>
+      <button type="button" className={`${styles.sidebarItem} ${styles.sidebarLogout}`} onClick={onLogout}>
+        <LogoutIcon className={styles.sidebarIcon} />
+        Cerrar sesión
+      </button>
     </aside>
   );
 }

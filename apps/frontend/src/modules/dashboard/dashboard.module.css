@@ -125,6 +125,11 @@
   color: var(--vx-white);
 }
 
+/* Pinned to the bottom of the sidebar, apart from the navigation */
+.sidebarLogout {
+  margin: auto 12px 0;
+}
+
 .sidebarItemActive {
   background: rgba(255, 255, 255, 0.18);
   color: var(--vx-white);
@@ -156,6 +161,33 @@
   .mobileHeader {
     display: none;
   }
+}
+
+/* Icon-only logout at the right end of the mobile header */
+.mobileLogout {
+  width: var(--vx-touch-target);
+  height: var(--vx-touch-target);
+  margin-right: 6px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--vx-text-muted);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.mobileLogout:active {
+  background: var(--vx-accent);
+  color: var(--vx-primary);
+}
+
+.mobileLogout:focus-visible {
+  outline: 2px solid var(--vx-secondary);
+  outline-offset: -2px;
 }
 
 .mobileLogo {
