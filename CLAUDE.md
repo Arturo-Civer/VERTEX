@@ -16,7 +16,11 @@ Express y base de datos SQL Server.
     - **Demo** (`VITE_DEMO_MODE=true`, para Netlify): valida contra `VITE_DEMO_EMAIL` / `VITE_DEMO_PASSWORD` sin backend y genera un token local `{ demo: true, exp: +8h }` sin firma real.
   - `App.tsx`: vista `'login' | 'dashboard'`. Si hay un token vigente, entra directo al dashboard.
 - **Dashboard** (`src/modules/dashboard/`): datos simulados (`mockData.ts`, `donutSimulation.ts`).
-  - Selectores CERO / Período.
+  - Selectores CERO / Período. Al cambiar el CERO se consulta `GET /api/equipos/:codigo` (`equipos.service.ts`):
+    - mientras espera, spinner;
+    - si existe, borde verde y ✓;
+    - si responde 404, 503 o hay error de red, borde rojo y banner con el mensaje del backend.
+    - Si el usuario cambia de nuevo, se cancela la consulta anterior. En modo demo no se consulta.
   - Panel de la dona: info del motor, unidades h/d/sem/mes y leyenda en una sola fila.
   - Tendencia con selector de variable y línea nominal.
   - Barras por turno y placeholder del mapa.
@@ -27,6 +31,8 @@ Express y base de datos SQL Server.
   - desktop: `(min-width: 768px) and (min-height: 501px)`, fijo a 100vh;
   - desktop compacto: alto ≤ 760;
   - desktop grande: ≥ 1440×860.
+- `src/shared/api.ts`: `API_URL` (`VITE_API_URL`) y `DEMO_MODE` (`VITE_DEMO_MODE`), compartidos por los servicios.
+- Variables de color para validación en `dashboard.module.css`: `--vx-ok` (#2E7D32) y `--vx-danger` (#E53935). `--vx-success` es azul, por eso no se usa para "ok".
 - Los archivos vacíos (`LoginPage.tsx`, `ReauthModal.tsx`, `modules/reporting`, `modules/admin`, `shared/`) son estructura pendiente.
 
 ### Backend (`apps/backend`) — Express 5 + TypeScript, `mssql`, `bcrypt`, `jsonwebtoken`
@@ -38,6 +44,11 @@ Express y base de datos SQL Server.
   - Respuestas: 200 `{ token }`, 400 si faltan datos, 401 `{ error: "Credenciales inválidas" }`.
   - JWT: `{ userId, email, username, rol: string[] }`, vence en `JWT_EXPIRES_IN` (8h).
   - Si el usuario no existe también ejecuta bcrypt, para que el tiempo de respuesta no delate qué usuarios existen.
+- **`GET /api/equipos/:codigo`** (`src/domains/equipos/`): busca un equipo activo en `dbo.EquiposCero` junto con su área.
+  - 200 `{ encontrado: true, codigo, nombre, area }`.
+  - 404 `{ encontrado: false, mensaje: "Equipo no encontrado" }`.
+  - 503 `{ encontrado: false, mensaje: "Sin conexión a la base de datos" }` si SQL Server no responde.
+  - Sin autenticación por ahora; es una prueba de conexión dashboard → backend → base de datos.
 - Pendiente:
   - middlewares `authenticate` / `authorize` / `reauthenticate` (vacíos), así que todavía no hay rutas protegidas;
   - el resto de dominios (data-acquisition, hours-calculation, mantenimiento, audit), que son archivos vacíos.
@@ -47,6 +58,10 @@ Express y base de datos SQL Server.
 - Migraciones `V001`–`V005`, procedimientos `R__*`, seeds `01`–`03` e instalador `database/scripts/01_install_databases.sql`.
 - Varios `.sql` están en **UTF-16**: para buscar en ellos, decodificarlos primero; `grep` no los lee.
 - Login SQL `app_demo_user`: solo `SELECT` / `EXECUTE` en `VERTEX_DEMO` (`DENY INSERT/UPDATE/DELETE`).
+- **Datos de prueba (solo desarrollo):**
+  - `CERO-011` "Equipo de prueba", insertado a mano en `dbo.EquiposCero` de `VERTEX_DEMO`, con el área, tipo y perfil de CERO-010. Sirve para probar el caso "encontrado"; no es un equipo real.
+  - Para borrarlo: `DELETE FROM dbo.EquiposCero WHERE codigo = 'CERO-011';` con un login con permisos de escritura, porque `app_demo_user` no los tiene.
+  - Equipos reales en la base: solo CERO-010. Ver `docs/equipos-mapping.md`.
 - Hashes reales de los 7 usuarios demo: `scripts/create_demo_users.ts`, que lee `DEMO_PWD_*` del `.env` raíz.
 
 ### Despliegue

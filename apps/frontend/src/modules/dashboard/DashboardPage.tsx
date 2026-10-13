@@ -1,8 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { DEMO_MODE } from '../../shared/api';
 import type { NavTabId, TrendVariableId } from '../../contracts/dashboard';
 import { mockData, NAV_TABS } from './mockData';
 import { DonutFilters } from './DonutFilters';
+import type { CeroCheck } from './DonutFilters';
 import { DonutPanel } from './DonutPanel';
+import { fetchEquipo } from './equipos.service';
 import { simulateDonut } from './donutSimulation';
 import type { CeroId, PeriodId } from './donutSimulation';
 import { HorizontalBars } from './HorizontalBars';
@@ -22,6 +25,28 @@ export function DashboardPage({ onLogout }: DashboardPageProps) {
   const [cero, setCero] = useState<CeroId>('CERO-010');
   const [period, setPeriod] = useState<PeriodId>('month');
   const [variableId, setVariableId] = useState<TrendVariableId>('corriente');
+  const [ceroCheck, setCeroCheck] = useState<CeroCheck>({ status: 'idle' });
+  const checkRequest = useRef<AbortController | null>(null);
+
+  useEffect(() => () => checkRequest.current?.abort(), []);
+
+  // Picking a CERO checks it exists in the database. A newer pick cancels
+  // the previous request. Demo mode (Netlify) has no backend: no check.
+  function handleCeroChange(next: CeroId) {
+    setCero(next);
+    checkRequest.current?.abort();
+    if (DEMO_MODE) return;
+
+    const controller = new AbortController();
+    checkRequest.current = controller;
+    setCeroCheck({ status: 'loading' });
+    fetchEquipo(next, controller.signal)
+      .then(() => setCeroCheck({ status: 'ok' }))
+      .catch((err: unknown) => {
+        if (controller.signal.aborted) return;
+        setCeroCheck({ status: 'error', message: err instanceof Error ? err.message : String(err) });
+      });
+  }
 
   const donut = useMemo(() => simulateDonut(cero, period), [cero, period]);
   const variable =
@@ -61,7 +86,8 @@ export function DashboardPage({ onLogout }: DashboardPageProps) {
             <DonutFilters
               cero={cero}
               period={period}
-              onCeroChange={setCero}
+              ceroCheck={ceroCheck}
+              onCeroChange={handleCeroChange}
               onPeriodChange={setPeriod}
             />
             <DonutPanel

@@ -3,55 +3,132 @@ import { CERO_OPTIONS, PERIOD_OPTIONS } from './donutSimulation';
 import type { CeroId, PeriodId } from './donutSimulation';
 import styles from './dashboard.module.css';
 
+/** Result of checking the selected CERO against the backend */
+export type CeroCheck =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'ok' }
+  | { status: 'error'; message: string };
+
 interface DonutFiltersProps {
   cero: CeroId;
   period: PeriodId;
+  ceroCheck: CeroCheck;
   onCeroChange: (cero: CeroId) => void;
   onPeriodChange: (period: PeriodId) => void;
 }
 
+function CheckIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M5 12.5l4.5 4.5L19 7.5" />
+    </svg>
+  );
+}
+
+function AlertIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 7v6" />
+      <path d="M12 17h.01" />
+    </svg>
+  );
+}
+
+const CHECK_CLASS: Record<CeroCheck['status'], string> = {
+  idle: '',
+  loading: styles.filterSelectBusy,
+  ok: `${styles.filterSelectBusy} ${styles.filterSelectOk}`,
+  error: styles.filterSelectError,
+};
+
 /** CERO + period selectors that drive the donut */
-export function DonutFilters({ cero, period, onCeroChange, onPeriodChange }: DonutFiltersProps) {
+export function DonutFilters({ cero, period, ceroCheck, onCeroChange, onPeriodChange }: DonutFiltersProps) {
   const ceroId = useId();
   const periodId = useId();
+  const errorId = useId();
+  const error = ceroCheck.status === 'error' ? ceroCheck.message : null;
 
   return (
-    <div className={styles.filters}>
-      <div className={styles.filterField}>
-        <label htmlFor={ceroId} className={styles.filterLabel}>
-          CERO
-        </label>
-        <select
-          id={ceroId}
-          className={styles.filterSelect}
-          value={cero}
-          onChange={(e) => onCeroChange(e.target.value as CeroId)}
-        >
-          {CERO_OPTIONS.map((id) => (
-            <option key={id} value={id}>
-              {id}
-            </option>
-          ))}
-        </select>
+    <>
+      <div className={styles.filters}>
+        <div className={styles.filterField}>
+          <label htmlFor={ceroId} className={styles.filterLabel}>
+            CERO
+          </label>
+          <div className={styles.filterSelectWrap}>
+            <select
+              id={ceroId}
+              className={`${styles.filterSelect} ${CHECK_CLASS[ceroCheck.status]}`}
+              value={cero}
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? errorId : undefined}
+              aria-busy={ceroCheck.status === 'loading' || undefined}
+              onChange={(e) => onCeroChange(e.target.value as CeroId)}
+            >
+              {CERO_OPTIONS.map((id) => (
+                <option key={id} value={id}>
+                  {id}
+                </option>
+              ))}
+            </select>
+            {ceroCheck.status === 'loading' && (
+              <span className={styles.filterSpinner} aria-label="Verificando equipo" role="status" />
+            )}
+            {ceroCheck.status === 'ok' && (
+              <span className={styles.filterOkIcon} role="status" aria-label="Equipo verificado">
+                <CheckIcon />
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className={styles.filterField}>
+          <label htmlFor={periodId} className={styles.filterLabel}>
+            Período
+          </label>
+          <select
+            id={periodId}
+            className={styles.filterSelect}
+            value={period}
+            onChange={(e) => onPeriodChange(e.target.value as PeriodId)}
+          >
+            {PERIOD_OPTIONS.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
-      <div className={styles.filterField}>
-        <label htmlFor={periodId} className={styles.filterLabel}>
-          Período
-        </label>
-        <select
-          id={periodId}
-          className={styles.filterSelect}
-          value={period}
-          onChange={(e) => onPeriodChange(e.target.value as PeriodId)}
-        >
-          {PERIOD_OPTIONS.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.label}
-            </option>
-          ))}
-        </select>
-      </div>
-    </div>
+      {error && (
+        <div id={errorId} className={styles.filterError} role="alert">
+          <AlertIcon />
+          <span>{error}</span>
+        </div>
+      )}
+    </>
   );
 }

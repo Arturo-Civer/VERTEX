@@ -1,15 +1,14 @@
+import { API_URL, DEMO_MODE } from '../../shared/api';
+
 /** localStorage key holding the session token (backend JWT or demo token) */
 export const TOKEN_KEY = 'vx_token';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-
-/**
+/*
  * Demo mode (Netlify presentations): no backend, the credentials come from
  * VITE_DEMO_EMAIL / VITE_DEMO_PASSWORD set in the hosting environment.
  * Vite inlines VITE_* values into the public bundle, so the demo password
  * must be a throwaway one, never a real account's.
  */
-const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
 const DEMO_SESSION_SECONDS = 8 * 60 * 60;
 
 const GENERIC_ERROR = 'No se pudo iniciar sesión. Intenta de nuevo más tarde.';

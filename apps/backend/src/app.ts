@@ -1,5 +1,6 @@
 import cors from 'cors';
 import express from 'express';
+import { equiposRouter } from './domains/equipos/equipos.routes';
 import { identityRouter } from './domains/identity/identity.routes';
 
 /** Express app: JSON bodies, CORS, health check and the domain routes */
@@ -19,6 +20,7 @@ export function createApp() {
   });
 
   app.use('/api/identity', identityRouter);
+  app.use('/api/equipos', equiposRouter);
 
   return app;
 }

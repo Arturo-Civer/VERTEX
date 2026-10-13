@@ -15,6 +15,9 @@
   --vx-accent: #D6E4F0;
   --vx-success: #2196F3;
   --vx-warning: #FF9800;
+  /* Validation states (--vx-success is blue, so it is not used for "ok") */
+  --vx-ok: #2E7D32;
+  --vx-danger: #E53935;
   --vx-neutral: #F5F5F5;
   --vx-text: #1A1A1A;
   --vx-text-muted: #757575;
@@ -519,6 +522,87 @@
   outline: none;
   border-color: var(--vx-secondary);
   box-shadow: 0 0 0 3px rgba(46, 117, 182, 0.15);
+}
+
+/* CERO check against the backend: spinner / ✓ inside the box (left of the
+   chevron), green or red border, error banner under the selectors */
+.filterSelectWrap {
+  position: relative;
+}
+
+.filterSelectBusy {
+  padding-right: 60px;
+}
+
+.filterSelectOk,
+.filterSelectOk:focus {
+  border-color: var(--vx-ok);
+}
+
+.filterSelectOk:focus {
+  box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.15);
+}
+
+.filterSelectError,
+.filterSelectError:focus {
+  border-color: var(--vx-danger);
+}
+
+.filterSelectError:focus {
+  box-shadow: 0 0 0 3px rgba(229, 57, 53, 0.15);
+}
+
+.filterSpinner,
+.filterOkIcon {
+  position: absolute;
+  top: 50%;
+  right: 34px;
+  pointer-events: none;
+}
+
+.filterSpinner {
+  width: 14px;
+  height: 14px;
+  margin-top: -7px;
+  border: 2px solid var(--vx-accent);
+  border-top-color: var(--vx-secondary);
+  border-radius: 50%;
+  animation: vx-filter-spin 0.7s linear infinite;
+}
+
+@keyframes vx-filter-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .filterSpinner {
+    animation-duration: 2s;
+  }
+}
+
+.filterOkIcon {
+  display: flex;
+  margin-top: -8px;
+  color: var(--vx-ok);
+}
+
+.filterError {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--vx-danger);
+  border-radius: 6px;
+  background: #FDECEA;
+  color: var(--vx-danger);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.filterError svg {
+  flex-shrink: 0;
 }
 
 /* Desktop: side by side, each selector 50% of the donut column */
