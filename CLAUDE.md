@@ -23,7 +23,13 @@ Express y base de datos SQL Server.
     - Si el usuario cambia de nuevo, se cancela la consulta anterior. En modo demo no se consulta.
   - Panel de la dona: info del motor, unidades h/d/sem/mes y leyenda en una sola fila.
   - Tendencia con selector de variable y línea nominal.
-  - Barras por turno y placeholder del mapa.
+  - **Resumen de eventos** (`EventsSummary.tsx`, `useIntervalos.ts`, `intervalos.service.ts`), en el lugar de las antiguas barras por turno:
+    - tabla Inicio / Fin / Duración / Estado con los intervalos del CERO seleccionado, y selector 7 / 15 / 30 días / Todo (por defecto 30);
+    - `PARADA_NORMAL` → Apagado, `MANTENIMIENTO` → Mantenimiento, `null` → En marcha ▶; las horas se muestran en UTC, tal como están guardadas;
+    - modo normal: `GET /api/equipos/:codigo/intervalos`;
+    - modo demo: datos simulados para CERO-010/011/012, y CERO-013 devuelve "Equipo no encontrado" para probar el error.
+    - `HorizontalBars.tsx` y `mockData.bars` quedan sin usar.
+  - Placeholder del mapa.
   - Cerrar sesión en el Sidebar (desktop) y en la cabecera móvil.
 - **Modos de layout** (los mismos en `dashboard.module.css` y `auth.module.css`):
   - teléfono por defecto;
@@ -49,6 +55,12 @@ Express y base de datos SQL Server.
   - 404 `{ encontrado: false, mensaje: "Equipo no encontrado" }`.
   - 503 `{ encontrado: false, mensaje: "Sin conexión a la base de datos" }` si SQL Server no responde.
   - Sin autenticación por ahora; es una prueba de conexión dashboard → backend → base de datos.
+- **`GET /api/equipos/:codigo/intervalos?dias=N`**: intervalos de `dbo.IntervalosFuncionamiento` de un equipo activo, del más reciente al más antiguo.
+  - 200 `{ fecha_referencia, intervalos: [{ inicio, fin, duracion_min, tipo_cierre }] }`.
+  - `fecha_referencia` = `MAX(fin)` del equipo, o `MAX(inicio)` si solo hay intervalos abiertos. Nunca se usa el reloj del servidor.
+  - Con `dias`, solo los intervalos con `inicio >= fecha_referencia - N días`; sin `dias`, todos.
+  - Si el equipo no tiene intervalos: `{ fecha_referencia: null, intervalos: [] }` (es el caso de CERO-011).
+  - 400 si `dias` no es un entero de 1 a 3650; 404 / 503 / 500 con `{ mensaje }`.
 - Pendiente:
   - middlewares `authenticate` / `authorize` / `reauthenticate` (vacíos), así que todavía no hay rutas protegidas;
   - el resto de dominios (data-acquisition, hours-calculation, mantenimiento, audit), que son archivos vacíos.

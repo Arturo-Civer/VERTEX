@@ -396,7 +396,7 @@
 /* Tablet portrait: plenty of height but little width, so the donut column
    (three blocks + one-row legend need width) and the trend column get
    full-width rows. Children of .grid in DOM order: 1 donut column,
-   2 trend column, 3 bars, 4 map → rows: donut / trend / bars + map */
+   2 trend column, 3 events, 4 map → rows: donut / trend / events + map */
 @media (min-width: 768px) and (max-width: 1099px) and (min-height: 501px) and (orientation: portrait) {
   .grid {
     grid-template-rows: minmax(0, 1.2fr) minmax(0, 1.1fr) minmax(0, 0.8fr);
@@ -1115,6 +1115,203 @@
   font-weight: 600;
   color: var(--vx-text);
   text-align: right;
+}
+
+/* ── Events summary (Resumen de eventos) ──────────────────── */
+/* Period buttons on top, then the intervals table; on desktop the table
+   scrolls inside the card (header row stays visible) */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.eventsRanges {
+  display: flex;
+  gap: 4px;
+  border: 0;
+  margin: 0 0 10px;
+  padding: 0;
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+/* Same look as the trend variable options */
+.eventsRange {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: var(--vx-touch-target);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  border: 1px solid #C8DCF0;
+  border-radius: 6px;
+  background: linear-gradient(to right, #FFFFFF 0%, #EEF5FB 50%, #FFFFFF 100%);
+  color: var(--vx-primary);
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+
+/* The radio stays focusable for keyboard and screen readers; the selected
+   option is shown by its border and background */
+.eventsRange input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  pointer-events: none;
+}
+
+.eventsRange:has(input:checked) {
+  border-color: var(--vx-secondary);
+  background: #EEF5FB;
+  font-weight: 700;
+}
+
+.eventsRange:has(input:focus-visible) {
+  border-color: var(--vx-secondary);
+  box-shadow: 0 0 0 3px rgba(46, 117, 182, 0.15);
+}
+
+.eventsBody {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.eventsMessage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 80px;
+  color: var(--vx-text-muted);
+  font-size: 13px;
+}
+
+.eventsSpinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--vx-accent);
+  border-top-color: var(--vx-secondary);
+  border-radius: 50%;
+  animation: vx-filter-spin 0.7s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eventsSpinner {
+    animation-duration: 2s;
+  }
+}
+
+.eventsTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  color: var(--vx-text);
+}
+
+.eventsTable th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--vx-white);
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--vx-border);
+  color: var(--vx-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.eventsTable td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--vx-border);
+  vertical-align: middle;
+}
+
+.eventsTable tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.eventsTable th:first-child,
+.eventsTable td:first-child {
+  padding-left: 0;
+}
+
+.eventsTable th:last-child,
+.eventsTable td:last-child {
+  padding-right: 0;
+}
+
+.eventsTable .eventsNum {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.eventsTable th:nth-child(3) {
+  text-align: right;
+}
+
+.eventsTime {
+  display: block;
+  color: var(--vx-text-muted);
+  font-size: 11px;
+}
+
+.eventState {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--vx-neutral);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.eventStateOn {
+  background: #E8F5E9;
+  color: var(--vx-ok);
+}
+
+.eventStateOff {
+  color: var(--vx-text-muted);
+}
+
+.eventStateMaint {
+  background: #FFF3E0;
+  color: #B26A00;
+}
+
+@media (min-width: 768px) and (min-height: 501px) {
+  .eventsRange {
+    min-height: 32px;
+  }
+
+  .eventsBody {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
+}
+
+@media (min-width: 1440px) and (min-height: 860px) {
+  .eventsTable {
+    font-size: 14px;
+  }
 }
 
 /* ── Trend line chart ─────────────────────────────────────── */

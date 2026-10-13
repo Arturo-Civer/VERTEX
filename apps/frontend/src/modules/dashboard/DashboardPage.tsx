@@ -8,7 +8,7 @@ import { DonutPanel } from './DonutPanel';
 import { fetchEquipo } from './equipos.service';
 import { simulateDonut } from './donutSimulation';
 import type { CeroId, PeriodId } from './donutSimulation';
-import { HorizontalBars } from './HorizontalBars';
+import { EventsSummary } from './EventsSummary';
 import { LogoutIcon } from './LogoutIcon';
 import { NavTabs } from './NavTabs';
 import { Sidebar } from './Sidebar';
@@ -111,9 +111,9 @@ export function DashboardPage({ onLogout }: DashboardPageProps) {
             />
           </div>
 
-          {/* Horizontal bars */}
+          {/* Operating intervals of the selected CERO */}
           <div className={styles.col5}>
-            <HorizontalBars title="Horas por turno" items={mockData.bars} />
+            <EventsSummary cero={cero} />
           </div>
 
           {/* Map placeholder */}
