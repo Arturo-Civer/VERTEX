@@ -171,7 +171,6 @@ scripts/               create_demo_users.ts
 docs/                  INSTALL_DATABASE.md
 instalar.ps1           Instalador de las bases de datos (PowerShell)
 start-vertex.ps1       Arranque de desarrollo: SQL Server + backend + frontend + navegador
-index.html             Página estática antigua ("Dashboard - Inicio"), no es la app React
 ```
 
 ## Variables de entorno
