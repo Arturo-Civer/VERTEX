@@ -6,7 +6,9 @@
     "dev": "tsx watch --env-file=.env src/main.ts",
     "build": "tsc",
     "start": "node --env-file=.env dist/main.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:export": "tsx --env-file=.env scripts/export-db-to-excel.ts",
+    "seed:mediciones": "tsx --env-file=.env scripts/seed-mediciones.ts"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
@@ -22,6 +24,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/mssql": "^12.3.0",
     "@types/node": "^26.6.5",
+    "exceljs": "^4.4.0",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }

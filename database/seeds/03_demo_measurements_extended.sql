@@ -1,10 +1,13 @@
 -- ================================================================
--- 03_demo_measurements_extended.sql  (v4 - variables re-insertadas)
--- Seed extendido: 8 variables + mediciones demo para CERO-010
+-- 03_demo_measurements_extended.sql  (v5 - sin variables propias)
+-- Seed extendido: mediciones demo de las 8 variables para CERO-010
 -- Periodo : 2026-09-11 → 2026-10-10 (30 días)
 -- Granularidad : horaria, turnos 06:00-22:00
 -- Evento anomalía: 2026-10-03 10:00 → 2026-10-05 14:00
--- v4: variables 44...01-04 hardcodeadas (las originales desaparecieron)
+-- v5: ya no crea ni modifica variables. El catalogo (IDs y codigos)
+--     lo define 01_reference_data.sql; este seed valida que exista
+--     y toma las unidades de dbo.Variables.
+-- Despues: database/scripts/99_verificar_integridad_variables.sql
 -- NOTA: ejecutar con sqlcmd -I
 -- ================================================================
 SET QUOTED_IDENTIFIER ON;
@@ -14,7 +17,32 @@ USE VERTEX_DEMO;
 GO
 
 -- ----------------------------------------------------------------
--- 0. Limpiar mediciones simuladas previas de CERO-010
+-- 0. Validar el catalogo de variables (antes de tocar datos)
+--    Si falta alguna de las 8 variables, o tiene otro codigo, se
+--    detiene: SET NOEXEC ON omite el resto del script.
+-- ----------------------------------------------------------------
+IF (SELECT COUNT(*)
+    FROM dbo.Variables v
+    JOIN (VALUES
+        ('44444444-4444-4444-4444-444444444401', 'CORRIENTE_MOTOR'),
+        ('44444444-4444-4444-4444-444444444402', 'RPM_MOTOR'),
+        ('44444444-4444-4444-4444-444444444403', 'TEMPERATURA_MOT'),
+        ('44444444-4444-4444-4444-444444444404', 'VOLTAJE_MOTOR'),
+        ('55555555-5555-5555-5555-555555555501', 'VIBRACION_MOT'),
+        ('55555555-5555-5555-5555-555555555502', 'FRECUENCIA_RED'),
+        ('55555555-5555-5555-5555-555555555503', 'POTENCIA_MOT'),
+        ('55555555-5555-5555-5555-555555555504', 'ESTADO_MOTOR')
+    ) AS c (variable_id, codigo)
+      ON v.variable_id = CAST(c.variable_id AS UNIQUEIDENTIFIER)
+     AND v.codigo      = c.codigo) <> 8
+BEGIN
+    RAISERROR('Catalogo de variables incompleto o con otros IDs. Ejecute primero 01_reference_data.sql.', 16, 1);
+    SET NOEXEC ON;
+END
+GO
+
+-- ----------------------------------------------------------------
+-- 1. Limpiar mediciones simuladas previas de CERO-010
 -- ----------------------------------------------------------------
 DELETE FROM dbo.Mediciones
 WHERE provenance = 'SIMULADA'
@@ -26,69 +54,12 @@ PRINT '>> Mediciones previas eliminadas: ' + CAST(@@ROWCOUNT AS VARCHAR(10));
 GO
 
 -- ----------------------------------------------------------------
--- 1. Insertar / actualizar las 8 variables del demo
--- ----------------------------------------------------------------
-MERGE dbo.Variables AS tgt
-USING (VALUES
-  -- Variables de monitoreo eléctrico/mecánico (originales)
-  ('44444444-4444-4444-4444-444444444401',
-   'CORRIENTE_MOTOR', N'Corriente del motor',
-   N'Corriente de fase en amperios — motor WEG W22 3CV (In ≈ 4.8 A)',
-   'A',     'DECIMAL', 'HABILITADA', 1),
-  ('44444444-4444-4444-4444-444444444402',
-   'RPM_MOTOR',       N'Velocidad de rotación',
-   N'Velocidad angular del eje — nominal 1740 RPM (4P, 60 Hz)',
-   'RPM',   'DECIMAL', 'HABILITADA', 0),
-  ('44444444-4444-4444-4444-444444444403',
-   'TEMPERATURA_MOT', N'Temperatura del motor',
-   N'Temperatura de bobinado — alarma > 65 °C (clase F: 155 °C)',
-   N'°C',   'DECIMAL', 'HABILITADA', 0),
-  ('44444444-4444-4444-4444-444444444404',
-   'VOLTAJE_MOTOR',   N'Voltaje de alimentación',
-   N'Tensión de fase en voltios — red trifásica 220 V Colombia',
-   'V',     'DECIMAL', 'HABILITADA', 0),
-  -- Variables nuevas
-  ('55555555-5555-5555-5555-555555555501',
-   'VIBRACION_MOT',  N'Vibración del motor',
-   N'Aceleración RMS eje X — límite ISO 10816 Clase II: 7.1 mm/s',
-   'mm/s',  'DECIMAL', 'HABILITADA', 1),
-  ('55555555-5555-5555-5555-555555555502',
-   'FRECUENCIA_RED', N'Frecuencia de red eléctrica',
-   N'Frecuencia de la red de alimentación (Colombia: 60 Hz)',
-   'Hz',    'DECIMAL', 'HABILITADA', 0),
-  ('55555555-5555-5555-5555-555555555503',
-   'POTENCIA_MOT',   N'Potencia activa consumida',
-   N'Potencia activa trifásica: P = √3 × V × I × cosφ',
-   'kW',    'DECIMAL', 'HABILITADA', 0),
-  ('55555555-5555-5555-5555-555555555504',
-   'ESTADO_MOTOR',   N'Estado de operación',
-   N'1 = Encendido (en turno)  |  0 = Apagado (fuera de turno)',
-   '-',     'INTEGER', 'HABILITADA', 0)
-) AS src (variable_id, codigo, nombre, descripcion, unidad, tipo_dato, estado, es_diagnostico)
-ON tgt.variable_id = src.variable_id
-WHEN NOT MATCHED THEN
-  INSERT (variable_id, codigo, nombre, descripcion, unidad, tipo_dato, estado, es_diagnostico)
-  VALUES (src.variable_id, src.codigo, src.nombre, src.descripcion,
-          src.unidad, src.tipo_dato, src.estado, src.es_diagnostico)
-WHEN MATCHED THEN
-  UPDATE SET codigo         = src.codigo,
-             nombre         = src.nombre,
-             descripcion    = src.descripcion,
-             unidad         = src.unidad,
-             tipo_dato      = src.tipo_dato,
-             estado         = src.estado,
-             es_diagnostico = src.es_diagnostico;
-
-PRINT '>> Variables insertadas/verificadas: 8';
-GO
-
--- ----------------------------------------------------------------
 -- 2. Generar mediciones (WHILE loop, paso de 1 hora)
 -- ----------------------------------------------------------------
 DECLARE @equipo_id UNIQUEIDENTIFIER = 'CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCC01';
 DECLARE @motor_id  UNIQUEIDENTIFIER = 'DDDDDDDD-DDDD-DDDD-DDDD-DDDDDDDDDD02';
 
--- UUIDs hardcodeados para las 8 variables
+-- IDs del catalogo definitivo (01_reference_data.sql, validados en el paso 0)
 DECLARE @v_corriente UNIQUEIDENTIFIER = '44444444-4444-4444-4444-444444444401';
 DECLARE @v_rpm       UNIQUEIDENTIFIER = '44444444-4444-4444-4444-444444444402';
 DECLARE @v_temp      UNIQUEIDENTIFIER = '44444444-4444-4444-4444-444444444403';
@@ -97,6 +68,17 @@ DECLARE @v_vibra     UNIQUEIDENTIFIER = '55555555-5555-5555-5555-555555555501';
 DECLARE @v_freq      UNIQUEIDENTIFIER = '55555555-5555-5555-5555-555555555502';
 DECLARE @v_pot       UNIQUEIDENTIFIER = '55555555-5555-5555-5555-555555555503';
 DECLARE @v_estado    UNIQUEIDENTIFIER = '55555555-5555-5555-5555-555555555504';
+
+-- Unidades tomadas del catalogo: cada medicion lleva siempre la unidad de su
+-- variable (y '°C' no depende de la codificacion con que se lea este archivo)
+DECLARE @u_corriente VARCHAR(20) = (SELECT unidad FROM dbo.Variables WHERE variable_id = @v_corriente);
+DECLARE @u_rpm       VARCHAR(20) = (SELECT unidad FROM dbo.Variables WHERE variable_id = @v_rpm);
+DECLARE @u_temp      VARCHAR(20) = (SELECT unidad FROM dbo.Variables WHERE variable_id = @v_temp);
+DECLARE @u_voltaje   VARCHAR(20) = (SELECT unidad FROM dbo.Variables WHERE variable_id = @v_voltaje);
+DECLARE @u_vibra     VARCHAR(20) = (SELECT unidad FROM dbo.Variables WHERE variable_id = @v_vibra);
+DECLARE @u_freq      VARCHAR(20) = (SELECT unidad FROM dbo.Variables WHERE variable_id = @v_freq);
+DECLARE @u_pot       VARCHAR(20) = (SELECT unidad FROM dbo.Variables WHERE variable_id = @v_pot);
+DECLARE @u_estado    VARCHAR(20) = (SELECT unidad FROM dbo.Variables WHERE variable_id = @v_estado);
 
 DECLARE @dt      DATETIME2(3) = '2026-09-11 00:00:00';
 DECLARE @dt_end  DATETIME2(3) = '2026-10-10 23:00:00';
@@ -130,7 +112,7 @@ BEGIN
       (medicion_id, variable_id, equipo_id, motor_id, valor, unidad,
        event_time, received_time, provenance, calidad, modificada)
     VALUES (NEWID(), @v_estado, @equipo_id, @motor_id,
-      @turno, '-', @dt, @dt, 'SIMULADA', 'BUENA', 0);
+      @turno, @u_estado, @dt, @dt, 'SIMULADA', 'BUENA', 0);
     SET @cnt = @cnt + 1;
 
     IF @turno = 1
@@ -155,7 +137,7 @@ BEGIN
           (medicion_id, variable_id, equipo_id, motor_id, valor, unidad,
            event_time, received_time, provenance, calidad, modificada)
         VALUES (NEWID(), @v_corriente, @equipo_id, @motor_id,
-          ROUND(@corriente, 3), 'A', @dt, @dt, 'SIMULADA',
+          ROUND(@corriente, 3), @u_corriente, @dt, @dt, 'SIMULADA',
           CASE WHEN @en_ano = 1 THEN 'DUDOSA' ELSE 'BUENA' END, 0);
 
         -- RPM
@@ -163,14 +145,14 @@ BEGIN
           (medicion_id, variable_id, equipo_id, motor_id, valor, unidad,
            event_time, received_time, provenance, calidad, modificada)
         VALUES (NEWID(), @v_rpm, @equipo_id, @motor_id,
-          ROUND(@rpm, 1), 'RPM', @dt, @dt, 'SIMULADA', 'BUENA', 0);
+          ROUND(@rpm, 1), @u_rpm, @dt, @dt, 'SIMULADA', 'BUENA', 0);
 
         -- TEMPERATURA
         INSERT INTO dbo.Mediciones
           (medicion_id, variable_id, equipo_id, motor_id, valor, unidad,
            event_time, received_time, provenance, calidad, modificada)
         VALUES (NEWID(), @v_temp, @equipo_id, @motor_id,
-          ROUND(@temp, 2), N'°C', @dt, @dt, 'SIMULADA',
+          ROUND(@temp, 2), @u_temp, @dt, @dt, 'SIMULADA',
           CASE WHEN @temp > 65 THEN 'MALA'
                WHEN @temp > 58 THEN 'DUDOSA'
                ELSE 'BUENA' END, 0);
@@ -180,14 +162,14 @@ BEGIN
           (medicion_id, variable_id, equipo_id, motor_id, valor, unidad,
            event_time, received_time, provenance, calidad, modificada)
         VALUES (NEWID(), @v_voltaje, @equipo_id, @motor_id,
-          ROUND(@voltaje, 1), 'V', @dt, @dt, 'SIMULADA', 'BUENA', 0);
+          ROUND(@voltaje, 1), @u_voltaje, @dt, @dt, 'SIMULADA', 'BUENA', 0);
 
         -- VIBRACIÓN
         INSERT INTO dbo.Mediciones
           (medicion_id, variable_id, equipo_id, motor_id, valor, unidad,
            event_time, received_time, provenance, calidad, modificada)
         VALUES (NEWID(), @v_vibra, @equipo_id, @motor_id,
-          ROUND(@vibra, 3), 'mm/s', @dt, @dt, 'SIMULADA',
+          ROUND(@vibra, 3), @u_vibra, @dt, @dt, 'SIMULADA',
           CASE WHEN @vibra > 7.1 THEN 'MALA'
                WHEN @vibra > 4.5 THEN 'DUDOSA'
                ELSE 'BUENA' END, 0);
@@ -197,14 +179,14 @@ BEGIN
           (medicion_id, variable_id, equipo_id, motor_id, valor, unidad,
            event_time, received_time, provenance, calidad, modificada)
         VALUES (NEWID(), @v_freq, @equipo_id, @motor_id,
-          ROUND(@freq, 3), 'Hz', @dt, @dt, 'SIMULADA', 'BUENA', 0);
+          ROUND(@freq, 3), @u_freq, @dt, @dt, 'SIMULADA', 'BUENA', 0);
 
         -- POTENCIA
         INSERT INTO dbo.Mediciones
           (medicion_id, variable_id, equipo_id, motor_id, valor, unidad,
            event_time, received_time, provenance, calidad, modificada)
         VALUES (NEWID(), @v_pot, @equipo_id, @motor_id,
-          @potencia, 'kW', @dt, @dt, 'SIMULADA', 'BUENA', 0);
+          @potencia, @u_pot, @dt, @dt, 'SIMULADA', 'BUENA', 0);
 
         SET @cnt = @cnt + 7;
     END
@@ -230,4 +212,9 @@ FROM dbo.Mediciones m
 JOIN dbo.Variables v ON v.variable_id = m.variable_id
 GROUP BY v.codigo
 ORDER BY v.codigo;
+GO
+
+-- Si la validacion del paso 0 fallo, NOEXEC quedo activo: se desactiva
+-- para no afectar a la sesion (esta instruccion se ejecuta siempre)
+SET NOEXEC OFF;
 GO

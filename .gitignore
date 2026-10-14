@@ -7,3 +7,6 @@ dist/
 *.pem
 *.key
 *.pfx
+
+# Snapshot de auditoría de la BD (npm run db:export), contiene datos reales
+docs/db-snapshot.xlsx

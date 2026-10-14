@@ -2,10 +2,23 @@ import { useId, useState, useSyncExternalStore } from 'react';
 import type { DonutSegment, MotorInfo, TimeUnit, ValidationStatus } from '../../contracts/dashboard';
 import styles from './dashboard.module.css';
 
+/** Evaluated period shown under the donut's center value */
+export interface DonutPeriodo {
+  /** e.g. "Del 14/09 al 14/10" */
+  rango: string;
+  /** Year line under the range: "2026", or "2025 – 2026" across a new year */
+  anio: string;
+  /** Last line, e.g. "(última medición)" */
+  detalle?: string;
+}
+
 interface DonutPanelProps {
   segments: DonutSegment[];
   totalHours: number;
   motorInfo: MotorInfo;
+  periodo?: DonutPeriodo;
+  /** Loading / empty / error message shown under the legend */
+  notice?: { text: string; error?: boolean };
 }
 
 const TIME_UNITS: {
@@ -14,14 +27,14 @@ const TIME_UNITS: {
   suffix: string;
   /** Shorter suffix for the legend on phones */
   mobileSuffix: string;
-  /** Subtitle under the donut's center value */
-  centerLabel: string;
+  /** Letter glued to the donut's center value (720H) */
+  centerSuffix: string;
   hoursPerUnit: number;
 }[] = [
-  { id: 'horas', label: 'Horas', suffix: 'h', mobileSuffix: 'h', centerLabel: 'Horas acumuladas', hoursPerUnit: 1 },
-  { id: 'dias', label: 'Días', suffix: 'd', mobileSuffix: 'd', centerLabel: 'Días acumulados', hoursPerUnit: 24 },
-  { id: 'semanas', label: 'Sem', suffix: 'sem', mobileSuffix: 's', centerLabel: 'Semanas acumuladas', hoursPerUnit: 168 },
-  { id: 'meses', label: 'Meses', suffix: 'mes', mobileSuffix: 'm', centerLabel: 'Meses acumulados', hoursPerUnit: 720 },
+  { id: 'horas', label: 'Horas', suffix: 'h', mobileSuffix: 'h', centerSuffix: 'H', hoursPerUnit: 1 },
+  { id: 'dias', label: 'Días', suffix: 'd', mobileSuffix: 'd', centerSuffix: 'D', hoursPerUnit: 24 },
+  { id: 'semanas', label: 'Sem', suffix: 'sem', mobileSuffix: 's', centerSuffix: 'S', hoursPerUnit: 168 },
+  { id: 'meses', label: 'Meses', suffix: 'mes', mobileSuffix: 'm', centerSuffix: 'M', hoursPerUnit: 720 },
 ];
 
 // Same "phone" mode as the CSS (everything that is not desktop), so phones
@@ -63,7 +76,7 @@ function formatValue(hours: number, unit: (typeof TIME_UNITS)[number]) {
  * Donut card: motor info (left), pure-SVG donut (center), time-unit picker
  * (right) and the legend underneath.
  */
-export function DonutPanel({ segments, totalHours, motorInfo }: DonutPanelProps) {
+export function DonutPanel({ segments, totalHours, motorInfo, periodo, notice }: DonutPanelProps) {
   const [unitId, setUnitId] = useState<TimeUnit>('horas');
   const unit = TIME_UNITS.find((u) => u.id === unitId) ?? TIME_UNITS[0];
   const legendSuffix = useIsMobile() ? unit.mobileSuffix : unit.suffix;
@@ -137,9 +150,16 @@ export function DonutPanel({ segments, totalHours, motorInfo }: DonutPanelProps)
             </svg>
             <div className={styles.donutCenter}>
               <div className={styles.donutValue}>
-                {formatValue(totalHours, unit)} {unit.suffix}
+                {formatValue(totalHours, unit)}
+                <span className={styles.donutUnit}>{unit.centerSuffix}</span>
               </div>
-              <div className={styles.donutLabel}>{unit.centerLabel}</div>
+              {periodo && (
+                <div className={styles.donutPeriod}>
+                  <span>{periodo.rango}</span>
+                  <span>{periodo.anio}</span>
+                  {periodo.detalle && <span>{periodo.detalle}</span>}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -174,6 +194,14 @@ export function DonutPanel({ segments, totalHours, motorInfo }: DonutPanelProps)
           </div>
         ))}
       </div>
+      {notice && (
+        <p
+          className={`${styles.chartNotice} ${notice.error ? styles.chartNoticeError : ''}`}
+          role={notice.error ? 'alert' : 'status'}
+        >
+          {notice.text}
+        </p>
+      )}
     </div>
   );
 }

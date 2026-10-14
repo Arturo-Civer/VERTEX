@@ -1,28 +1,28 @@
 import { useEffect, useState } from 'react';
 import { DEMO_MODE } from '../../shared/api';
-import { demoIntervalos, fetchIntervalos } from './intervalos.service';
-import type { IntervalosData } from './intervalos.service';
+import { demoBloquesData, fetchBloques } from './bloques.service';
+import type { BloquesData } from './bloques.service';
 
-export type IntervalosState =
+export type BloquesState =
   | { status: 'loading' }
   | { status: 'error'; message: string }
-  | { status: 'data'; data: IntervalosData };
+  | { status: 'data'; data: BloquesData };
 
 /**
- * Intervals of the selected CERO within the last `dias` days (null: all).
+ * State blocks of the selected CERO within the last `dias` days (null: all).
  * Refetches when either changes; a newer request cancels the previous one.
  * Demo mode (Netlify) serves simulated data instead of calling the backend.
  */
-export function useIntervalos(codigo: string, dias: number | null): IntervalosState {
+export function useBloques(codigo: string, dias: number | null): BloquesState {
   const key = `${codigo}|${dias}`;
   // The state of the request it belongs to; another key means still loading
-  const [result, setResult] = useState<{ key: string; state: IntervalosState } | null>(null);
+  const [result, setResult] = useState<{ key: string; state: BloquesState } | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
     const request = DEMO_MODE
-      ? demoIntervalos(codigo, dias)
-      : fetchIntervalos(codigo, dias, controller.signal);
+      ? demoBloquesData(codigo, dias)
+      : fetchBloques(codigo, dias, controller.signal);
 
     request
       .then((data) => {

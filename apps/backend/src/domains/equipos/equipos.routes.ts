@@ -1,7 +1,9 @@
 import { Router } from 'express';
-import { getEquipo, getIntervalos } from './equipos.controller';
+import { getBloques, getEquipo, getMediciones, getResumen } from './equipos.controller';
 
 export const equiposRouter = Router();
 
 equiposRouter.get('/:codigo', getEquipo);
-equiposRouter.get('/:codigo/intervalos', getIntervalos);
+equiposRouter.get('/:codigo/bloques', getBloques);
+equiposRouter.get('/:codigo/resumen', getResumen);
+equiposRouter.get('/:codigo/mediciones', getMediciones);

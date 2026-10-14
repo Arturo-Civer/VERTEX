@@ -6,7 +6,14 @@ interface TrendChartProps {
   data: TrendPoint[];
   /** Reference value drawn as a dashed red line */
   nominalValue: number;
+  /** Loading / empty / error message shown under the title */
+  notice?: { text: string; error?: boolean };
 }
+
+// Long windows (up to 180 daily points): at most this many X labels, and
+// point markers only while they do not overlap
+const MAX_X_LABELS = 8;
+const MAX_MARKERS = 31;
 
 const NOMINAL_COLOR = '#E53935';
 
@@ -32,7 +39,7 @@ function format(value: number, decimals: number) {
 }
 
 /** Pure-SVG line chart for MVP (swap for Recharts LineChart when available) */
-export function TrendChart({ title, data, nominalValue }: TrendChartProps) {
+export function TrendChart({ title, data, nominalValue, notice }: TrendChartProps) {
   const w = 400;
   const h = 180;
   // Right padding leaves room for the "Nominal: X" label outside the plot
@@ -74,10 +81,19 @@ export function TrendChart({ title, data, nominalValue }: TrendChartProps) {
   // grid lines
   const gridYs = [0.25, 0.5, 0.75, 1].map((t) => pad.top + innerH * (1 - t));
   const nominalY = yFor(nominalValue);
+  const labelEvery = Math.ceil(points.length / MAX_X_LABELS);
 
   return (
     <div className={styles.card}>
       <h3 className={styles.cardTitle}>{title}</h3>
+      {notice && (
+        <p
+          className={`${styles.chartNotice} ${notice.error ? styles.chartNoticeError : ''}`}
+          role={notice.error ? 'alert' : 'status'}
+        >
+          {notice.text}
+        </p>
+      )}
       <div className={styles.trendChart}>
         <svg
           viewBox={`0 0 ${w} ${h}`}
@@ -119,13 +135,12 @@ export function TrendChart({ title, data, nominalValue }: TrendChartProps) {
           </text>
 
           <path d={pathD} fill="none" stroke="#2E75B6" strokeWidth={2.5} />
-          {points.map((p) => (
-            <circle key={p.day} cx={p.x} cy={p.y} r={3.5} fill="#1F3864" />
-          ))}
+          {points.length <= MAX_MARKERS &&
+            points.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={3.5} fill="#1F3864" />)}
           {/* X labels */}
-          {points.map((p) => (
+          {points.map((p, i) => i % labelEvery === 0 && (
             <text
-              key={`lbl-${p.day}`}
+              key={`lbl-${i}`}
               x={p.x}
               y={h - 8}
               textAnchor="middle"

@@ -855,11 +855,14 @@
   height: 100%;
 }
 
+/* The ring's hole is 78% of the donut (r 78 of 100); 62% leaves a margin
+   for the period's lines, which may wrap but are never cut */
 .donutCenter {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
+  width: 62cqi;
   text-align: center;
   pointer-events: none;
 }
@@ -869,6 +872,25 @@
   font-weight: 700;
   color: var(--vx-text);
   line-height: 1.1;
+  white-space: nowrap;
+}
+
+/* Unit letter glued to the number (720H), a bit smaller */
+.donutUnit {
+  font-size: 0.7em;
+}
+
+/* Evaluated period under the number: always two lines (range / detail).
+   The font scales with the donut so "Del 14/09 al 14/10" fits unwrapped */
+.donutPeriod {
+  margin-top: 2cqi;
+  font-size: clamp(6px, 5.8cqi, 12px);
+  line-height: 1.25;
+  color: var(--vx-text-muted);
+}
+
+.donutPeriod span {
+  display: block;
   white-space: nowrap;
 }
 
@@ -1262,8 +1284,18 @@
   font-variant-numeric: tabular-nums;
 }
 
-.eventsTable th:nth-child(3) {
+/* Duración (after #, Inicio, Fin) */
+.eventsTable th:nth-child(4) {
   text-align: right;
+}
+
+/* Row number: narrow, muted, right-aligned digits */
+.eventsTable .eventsIndex {
+  width: 1%;
+  text-align: right;
+  white-space: nowrap;
+  color: var(--vx-text-muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .eventsTime {
@@ -1294,6 +1326,11 @@
 .eventStateMaint {
   background: #FFF3E0;
   color: #B26A00;
+}
+
+.eventStateEvent {
+  background: #FFEBEE;
+  color: var(--vx-danger);
 }
 
 @media (min-width: 768px) and (min-height: 501px) {
@@ -1330,6 +1367,17 @@
     max-height: none;
     aspect-ratio: auto;
   }
+}
+
+/* Loading / empty / error line of the donut and trend cards */
+.chartNotice {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--vx-text-muted);
+}
+
+.chartNoticeError {
+  color: var(--vx-danger);
 }
 
 /* ── Map placeholder ──────────────────────────────────────── */

@@ -1,6 +1,6 @@
 import { useId, useState } from 'react';
-import type { Intervalo } from './intervalos.service';
-import { useIntervalos } from './useIntervalos';
+import type { ValidationStatus } from '../../contracts/dashboard';
+import { useBloques } from './useBloques';
 import styles from './dashboard.module.css';
 
 const RANGE_OPTIONS = [
@@ -11,11 +11,12 @@ const RANGE_OPTIONS = [
 ] as const;
 type RangeId = (typeof RANGE_OPTIONS)[number]['id'];
 
-const ESTADOS: Record<string, { label: string; className: string }> = {
-  PARADA_NORMAL: { label: 'Apagado', className: styles.eventStateOff },
+const ESTADOS: Record<ValidationStatus, { label: string; className: string }> = {
+  ENCENDIDO: { label: 'Encendido', className: styles.eventStateOn },
+  APAGADO: { label: 'Apagado', className: styles.eventStateOff },
+  EVENTO: { label: 'Evento', className: styles.eventStateEvent },
   MANTENIMIENTO: { label: 'Mantenimiento', className: styles.eventStateMaint },
 };
-const EN_MARCHA = { label: 'En marcha ▶', className: styles.eventStateOn };
 
 // Times are shown as stored (the backend sends them with a Z suffix), so
 // format in UTC to avoid shifting them to the browser's time zone
@@ -48,21 +49,19 @@ function DateCell({ value }: { value: string }) {
   );
 }
 
-function estado(intervalo: Intervalo) {
-  if (intervalo.tipo_cierre === null) return EN_MARCHA;
-  return ESTADOS[intervalo.tipo_cierre] ?? { label: intervalo.tipo_cierre, className: '' };
-}
-
 interface EventsSummaryProps {
   cero: string;
 }
 
-/** "Resumen de eventos": operating intervals of the selected CERO */
+/**
+ * "Resumen de eventos": state blocks of the selected CERO, as classified by
+ * dbo.sp_vx_resumen_estados (the same calculation as the donut)
+ */
 export function EventsSummary({ cero }: EventsSummaryProps) {
   const name = useId();
   const [range, setRange] = useState<RangeId>('30');
   const days = RANGE_OPTIONS.find((r) => r.id === range)?.days ?? null;
-  const state = useIntervalos(cero, days);
+  const state = useBloques(cero, days);
 
   return (
     <div className={styles.card}>
@@ -98,14 +97,15 @@ export function EventsSummary({ cero }: EventsSummaryProps) {
           </div>
         )}
 
-        {state.status === 'data' && state.data.intervalos.length === 0 && (
+        {state.status === 'data' && state.data.bloques.length === 0 && (
           <div className={styles.eventsMessage}>Sin eventos en el período</div>
         )}
 
-        {state.status === 'data' && state.data.intervalos.length > 0 && (
+        {state.status === 'data' && state.data.bloques.length > 0 && (
           <table className={styles.eventsTable}>
             <thead>
               <tr>
+                <th scope="col" className={styles.eventsIndex}>#</th>
                 <th scope="col">Inicio</th>
                 <th scope="col">Fin</th>
                 <th scope="col">Duración</th>
@@ -113,16 +113,20 @@ export function EventsSummary({ cero }: EventsSummaryProps) {
               </tr>
             </thead>
             <tbody>
-              {state.data.intervalos.map((i) => {
-                const e = estado(i);
+              {/* Numbered in display order: 1 is the most recent */}
+              {state.data.bloques.map((b, n) => {
+                const e = ESTADOS[b.segmento];
                 return (
-                  <tr key={i.inicio}>
+                  <tr key={b.inicio} title={b.regla}>
+                    <td className={styles.eventsIndex}>{n + 1}</td>
                     <td>
-                      <DateCell value={i.inicio} />
+                      <DateCell value={b.inicio} />
                     </td>
-                    <td>{i.fin === null ? 'En curso' : <DateCell value={i.fin} />}</td>
+                    <td>
+                      <DateCell value={b.fin} />
+                    </td>
                     <td className={styles.eventsNum}>
-                      {i.duracion_min === null ? '—' : `${HOURS_FORMAT.format(i.duracion_min / 60)} h`}
+                      {`${HOURS_FORMAT.format(b.duracion_min / 60)} h`}
                     </td>
                     <td>
                       <span className={`${styles.eventState} ${e.className}`}>{e.label}</span>

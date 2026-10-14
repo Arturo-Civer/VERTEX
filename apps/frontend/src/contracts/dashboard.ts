@@ -42,7 +42,7 @@ export interface MotorInfo {
 /** Unit used to display the donut values (stored values are always hours) */
 export type TimeUnit = 'horas' | 'dias' | 'semanas' | 'meses';
 
-export type TrendVariableId = 'corriente' | 'vibracion' | 'temperatura' | 'frecuencia' | 'produccion';
+export type TrendVariableId = 'corriente' | 'vibracion' | 'temperatura' | 'voltaje' | 'produccion';
 
 export interface TrendPoint {
   day: string;
@@ -52,6 +52,8 @@ export interface TrendPoint {
 /** A measured variable for the trend chart, with its nominal reference value */
 export interface TrendVariable {
   id: TrendVariableId;
+  /** dbo.Variables.codigo read from the backend; omitted: simulated only */
+  codigo?: string;
   label: string;
   /** Unit shown next to the label, e.g. "A"; omitted for unitless variables */
   unit?: string;
