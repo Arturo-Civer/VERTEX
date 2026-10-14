@@ -24,7 +24,7 @@ Express y base de datos SQL Server.
   - Panel de la dona: info del motor, unidades h/d/sem/mes y leyenda en una sola fila.
     - Centro de la dona: total con la letra de la unidad pegada (`720H`, `30,0D`, `4,3S`, `1,0M`) y debajo el período en líneas sin partir: "Del dd/mm al dd/mm", el año ("2026", o "2025 – 2026" si cruza de año) y, en modo normal, "(última medición)". Letra de la fecha `clamp(6px, 5.8cqi, 12px)`; cabe en los 5 layouts (verificado hasta un teléfono de 320 px).
     - Modo normal: horas por estado de `GET /api/equipos/:codigo/resumen?dias=N` (el período del selector: 7, 15, 30, 90 o 180 días) y el estado del motor (`estado_actual`). Debajo de la leyenda solo "Cargando…", "Sin mediciones…" o el error.
-    - Modo demo: horas simuladas (`simulateDonut`) y período terminando hoy.
+    - Modo demo: `demoResumen` (`bloques.service.ts`) suma los mismos bloques simulados que la tabla y pasa por `donutFromResumen`, igual que el modo normal: dona, estado del motor y tabla siempre coinciden. El período termina en el último registro simulado (14/10).
     - Producto y línea siguen simulados.
   - Tendencia con selector de variable (corriente, vibración, temperatura, voltaje y producción) y línea nominal (valores fijos en `mockData.ts`: 5,2 A, 2,5 mm/s, 60 °C y 220 V).
     - Modo normal: promedio diario con el motor encendido de `GET /api/equipos/:codigo/mediciones`, en la misma ventana que la dona. Producción sigue simulada y lo indica.
@@ -36,7 +36,7 @@ Express y base de datos SQL Server.
     - Encendido / Apagado / Evento / Mantenimiento; las horas se muestran en UTC, tal como están guardadas;
     - modo normal: `GET /api/equipos/:codigo/bloques`;
     - modo demo: bloques simulados minuto a minuto con los turnos del seed (CERO-010/011/012), y CERO-013 devuelve "Equipo no encontrado" para probar el error.
-    - En teléfono (360 px) la tabla mide ~359 px para 304 disponibles: se desplaza en horizontal.
+    - Teléfono (todo lo que no es desktop): Estado con etiqueta corta ("Encend.", "Apagado", "Evento", "Mtto."; la completa en `title`) y celdas con menos relleno; ≤ 340 px, letra 11 px. Cabe sin desplazamiento horizontal en 360 px (304/304), 320 px (264/264) y teléfono horizontal.
     - `HorizontalBars.tsx` y `mockData.bars` quedan sin usar.
   - Placeholder del mapa.
   - Cerrar sesión en el Sidebar (desktop) y en la cabecera móvil.
@@ -73,7 +73,7 @@ Express y base de datos SQL Server.
   - 200 `{ fecha_referencia, desde, bloques: [{ inicio, fin, duracion_min, segmento, regla, marcas }] }`.
 - `/resumen` y `/bloques`: 400 si `dias` no es un entero de 1 a 3650; 404 / 503 / 500 con `{ mensaje }`. Ventana: de `MAX(event_time) - N días` (o el primer registro, si es posterior) al último registro. Nunca usan el reloj del servidor.
 - `GET /api/equipos/:codigo/intervalos` ya no existe (leía `IntervalosFuncionamiento`).
-- **`GET /api/equipos/:codigo/mediciones?variable=CODIGO&dias=N`**: promedio, mínimo, máximo y número de lecturas por día (UTC) de una variable, solo de los minutos con `ESTADO_MOTOR = 1`.
+- **`GET /api/equipos/:codigo/mediciones?variable=CODIGO&dias=N`**: promedio, mínimo, máximo y número de lecturas por día (UTC) de una variable, solo con el motor encendido. Solo ejecuta `dbo.sp_vx_tendencia_variable`.
   - `variable`: CORRIENTE_MOTOR, TEMPERATURA_MOT, VIBRACION_MOT, VOLTAJE_MOTOR, FRECUENCIA_RED, POTENCIA_MOT o RPM_MOTOR; si no, 400.
   - 200 `{ variable, unidad, fecha_referencia, puntos: [{ dia, promedio, minimo, maximo, lecturas }] }`; sin `dias`, todos los días.
 - Pendiente:
@@ -135,7 +135,9 @@ Express y base de datos SQL Server.
 | | TEMPERATURA_MOT `UMBRAL_MAX` / `HABILITADO` | 65 °C / 1 |
 
   - Resultado en la demo (CERO-010): 5 ciclos separados por 4 mantenimientos (6 h, 17,5 h, 26 h y 5 h); ninguno supera el 30 %, así que todo el EVENTO viene de la regla 4b (p. ej. desde la marca de vibración del 21/09 06:11 hasta el mantenimiento del 28/09). Septiembre: ENCENDIDO 21 412, APAGADO 8 258, EVENTO 10 920, MANTENIMIENTO 2 610 min.
-  - `GET /mediciones` (tendencia) todavía filtra por `ESTADO_MOTOR = 1`, no por la corriente del cálculo.
+- **Tendencia**: `database/procedures/R__sp_vx_tendencia_variable.sql` (UTF-16 LE con BOM). `EXEC dbo.sp_vx_tendencia_variable @equipo_codigo, @variable_codigo, @dias` → 1) `unidad`, `fecha_referencia`; 2) por día: promedio, mínimo, máximo, lecturas.
+  - Encendido con el mismo criterio que el cálculo de estados: corriente > `CORRIENTE_CERO_MAX`; sin corriente, `ESTADO_MOTOR <> 0`. ~0,1–0,5 s.
+  - `sp_vx_get_serie_variable` (puntos sueltos con historial de modificaciones) es otro propósito y no lo usa el dashboard.
 - Login SQL `app_demo_user`: solo `SELECT` / `EXECUTE` en `VERTEX_DEMO` (`DENY INSERT/UPDATE/DELETE`).
 - **Datos de prueba (solo desarrollo):**
   - `CERO-011` "Equipo de prueba", insertado a mano en `dbo.EquiposCero` de `VERTEX_DEMO`, con el área, tipo y perfil de CERO-010. Sirve para probar el caso "encontrado"; no es un equipo real.

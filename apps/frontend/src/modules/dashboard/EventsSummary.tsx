@@ -11,11 +11,12 @@ const RANGE_OPTIONS = [
 ] as const;
 type RangeId = (typeof RANGE_OPTIONS)[number]['id'];
 
-const ESTADOS: Record<ValidationStatus, { label: string; className: string }> = {
-  ENCENDIDO: { label: 'Encendido', className: styles.eventStateOn },
-  APAGADO: { label: 'Apagado', className: styles.eventStateOff },
-  EVENTO: { label: 'Evento', className: styles.eventStateEvent },
-  MANTENIMIENTO: { label: 'Mantenimiento', className: styles.eventStateMaint },
+// corto: label on phones, as in the donut legend, so the table fits 360 px
+const ESTADOS: Record<ValidationStatus, { label: string; corto: string; className: string }> = {
+  ENCENDIDO: { label: 'Encendido', corto: 'Encend.', className: styles.eventStateOn },
+  APAGADO: { label: 'Apagado', corto: 'Apagado', className: styles.eventStateOff },
+  EVENTO: { label: 'Evento', corto: 'Evento', className: styles.eventStateEvent },
+  MANTENIMIENTO: { label: 'Mantenimiento', corto: 'Mtto.', className: styles.eventStateMaint },
 };
 
 // Times are shown as stored (the backend sends them with a Z suffix), so
@@ -129,7 +130,10 @@ export function EventsSummary({ cero }: EventsSummaryProps) {
                       {`${HOURS_FORMAT.format(b.duracion_min / 60)} h`}
                     </td>
                     <td>
-                      <span className={`${styles.eventState} ${e.className}`}>{e.label}</span>
+                      <span className={`${styles.eventState} ${e.className}`} title={e.label}>
+                        <span className={styles.eventStateLong}>{e.label}</span>
+                        <span className={styles.eventStateShort}>{e.corto}</span>
+                      </span>
                     </td>
                   </tr>
                 );

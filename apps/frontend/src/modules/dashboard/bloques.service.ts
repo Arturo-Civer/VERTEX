@@ -1,5 +1,6 @@
 import { API_URL } from '../../shared/api';
 import type { ValidationStatus } from '../../contracts/dashboard';
+import type { ResumenData } from './operacion.service';
 
 /** Consecutive time with the same state (dbo.sp_vx_resumen_estados) */
 export interface Bloque {
@@ -154,8 +155,27 @@ function demoBloques(p: DemoPerfil): Bloque[] {
   return bloques.reverse();
 }
 
-/** Demo data with the same day window as the backend (counted back from the latest record) */
+/** Demo blocks with the same day window as the backend (counted back from the latest record) */
 export async function demoBloquesData(codigo: string, dias: number | null): Promise<BloquesData> {
+  return demoBloquesSync(codigo, dias);
+}
+
+/**
+ * Demo donut hours from the same simulated blocks as the table, so both
+ * always agree (the backend does the same from dbo.sp_vx_resumen_estados).
+ * Throws "Equipo no encontrado" for an unknown CERO.
+ */
+export function demoResumen(codigo: string, dias: number): ResumenData {
+  const { fecha_referencia, desde, bloques } = demoBloquesSync(codigo, dias);
+  const minutos: Record<ValidationStatus, number> = { ENCENDIDO: 0, APAGADO: 0, EVENTO: 0, MANTENIMIENTO: 0 };
+  for (const b of bloques) minutos[b.segmento] += b.duracion_min;
+  const horas = Object.fromEntries(
+    Object.entries(minutos).map(([estado, min]) => [estado, Math.round((min / 60) * 100) / 100]),
+  ) as Record<ValidationStatus, number>;
+  return { fecha_referencia, desde, horas, estado_actual: bloques[0]?.segmento ?? null };
+}
+
+function demoBloquesSync(codigo: string, dias: number | null): BloquesData {
   const perfil = DEMO_PERFILES[codigo];
   if (!perfil) throw new Error(NOT_FOUND);
 

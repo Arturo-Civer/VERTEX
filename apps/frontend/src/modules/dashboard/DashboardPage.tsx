@@ -7,8 +7,9 @@ import type { CeroCheck } from './DonutFilters';
 import { DonutPanel } from './DonutPanel';
 import type { DonutPeriodo } from './DonutPanel';
 import { fetchEquipo } from './equipos.service';
-import { PERIOD_OPTIONS, simulateDonut } from './donutSimulation';
+import { PERIOD_OPTIONS } from './donutSimulation';
 import type { CeroId, DonutData, PeriodId } from './donutSimulation';
+import { demoResumen } from './bloques.service';
 import { fetchMediciones, fetchResumen } from './operacion.service';
 import type { ResumenData } from './operacion.service';
 import { useBackend } from './useBackend';
@@ -29,22 +30,15 @@ type DonutView = DonutData & { periodo?: DonutPeriodo; notice?: Notice };
 const diaMes = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 
 /** "2026", or "2025 – 2026" when the period crosses a new year */
-const anios = (desde: string | number, hasta: string | number) =>
-  desde === hasta ? String(hasta) : `${desde} – ${hasta}`;
+const anios = (desde: string, hasta: string) => (desde === hasta ? hasta : `${desde} – ${hasta}`);
 
-/** dd/mm of a local date */
-const diaMesLocal = (d: Date) =>
-  `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
-
-/** Demo mode has no measurements: the simulated period ends today */
-function periodoDemo(days: number): DonutPeriodo {
-  const hasta = new Date();
-  const desde = new Date(hasta);
-  desde.setDate(desde.getDate() - days);
-  return {
-    rango: `Del ${diaMesLocal(desde)} al ${diaMesLocal(hasta)}`,
-    anio: anios(desde.getFullYear(), hasta.getFullYear()),
-  };
+/** Demo mode (Netlify): the same simulated blocks as the events table, summed */
+function resumenDemo(cero: string, dias: number): BackendState<ResumenData> {
+  try {
+    return { status: 'data', data: demoResumen(cero, dias) };
+  } catch (err) {
+    return { status: 'error', message: err instanceof Error ? err.message : String(err) };
+  }
 }
 
 /**
@@ -112,20 +106,20 @@ export function DashboardPage({ onLogout }: DashboardPageProps) {
   const variableTitle = variable.unit ? `${variable.label} (${variable.unit})` : variable.label;
 
   // Normal mode reads hours per state and the daily trend from the backend;
-  // demo mode (Netlify) and variables without a database code stay simulated
-  const resumen = useBackend(DEMO_MODE ? null : `${cero}|${periodDays}`, (signal) =>
+  // demo mode (Netlify) sums the simulated blocks of the events table, and
+  // variables without a database code stay simulated
+  const resumenBackend = useBackend(DEMO_MODE ? null : `${cero}|${periodDays}`, (signal) =>
     fetchResumen(cero, periodDays, signal),
   );
+  const resumenSimulado = useMemo(() => (DEMO_MODE ? resumenDemo(cero, periodDays) : null), [cero, periodDays]);
+  const resumen = resumenSimulado ?? resumenBackend;
   const trendCodigo = DEMO_MODE ? undefined : variable.codigo;
   const mediciones = useBackend(
     trendCodigo ? `${cero}|${trendCodigo}|${periodDays}` : null,
     (signal) => fetchMediciones(cero, trendCodigo ?? '', periodDays, signal),
   );
 
-  const simulatedDonut = useMemo(() => simulateDonut(cero, period), [cero, period]);
-  const donut: DonutView = DEMO_MODE
-    ? { ...simulatedDonut, periodo: periodoDemo(periodDays) }
-    : donutFromResumen(resumen, cero);
+  const donut = donutFromResumen(resumen, cero);
   const motorInfo =
     resumen.status === 'data' && resumen.data.estado_actual
       ? { ...mockData.motorInfo, estado: resumen.data.estado_actual }

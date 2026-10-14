@@ -242,9 +242,9 @@ export interface MedicionesEquipo {
 
 /**
  * Daily average, minimum and maximum of a variable over the last `dias` days
- * of data (null: all), counting only the minutes with the motor running
- * (ESTADO_MOTOR = 1 at the same event_time): readings with the motor off are
- * near zero and would drag the average down. Null when the equipment does
+ * of data (null: all), with the motor running only. The query lives in
+ * dbo.sp_vx_tendencia_variable (database/procedures), which uses the same
+ * "running" rule as dbo.sp_vx_resumen_estados. Null when the equipment does
  * not exist.
  */
 export async function findMediciones(
@@ -256,51 +256,32 @@ export async function findMediciones(
 
   try {
     const result = await new sql.Request()
-      .input('codigo', sql.VarChar(MAX_CODIGO_LENGTH), codigo)
-      .input('variable', sql.VarChar(50), variable)
+      .input('equipo_codigo', sql.VarChar(MAX_CODIGO_LENGTH), codigo)
+      .input('variable_codigo', sql.VarChar(50), variable)
       .input('dias', sql.Int, dias)
-      .query(`
-        DECLARE @equipo_id UNIQUEIDENTIFIER =
-          (SELECT equipo_id FROM dbo.EquiposCero WHERE codigo = @codigo AND activo = 1);
-        DECLARE @variable_id UNIQUEIDENTIFIER, @unidad VARCHAR(20);
-        SELECT @variable_id = variable_id, @unidad = unidad FROM dbo.Variables WHERE codigo = @variable;
-        DECLARE @estado_id UNIQUEIDENTIFIER =
-          (SELECT variable_id FROM dbo.Variables WHERE codigo = 'ESTADO_MOTOR');
-        DECLARE @hasta DATETIME2(3) =
-          (SELECT MAX(event_time) FROM dbo.Mediciones WHERE equipo_id = @equipo_id);
+      .execute('dbo.sp_vx_tendencia_variable');
 
-        SELECT @equipo_id AS equipo_id, @unidad AS unidad, @hasta AS fecha_referencia;
-
-        SELECT CONVERT(CHAR(10), CAST(m.event_time AS DATE), 23) AS dia,
-               AVG(m.valor) AS promedio, MIN(m.valor) AS minimo, MAX(m.valor) AS maximo,
-               COUNT(*) AS lecturas
-        FROM dbo.Mediciones m
-        JOIN dbo.Mediciones e
-          ON e.equipo_id = m.equipo_id AND e.event_time = m.event_time
-         AND e.variable_id = @estado_id AND e.valor = 1
-        WHERE m.equipo_id = @equipo_id
-          AND m.variable_id = @variable_id
-          AND (@dias IS NULL OR m.event_time > DATEADD(day, -@dias, @hasta))
-        GROUP BY CAST(m.event_time AS DATE)
-        ORDER BY dia;
-      `);
-
-    const recordsets = result.recordsets as sql.IRecordSet<unknown>[];
-    const head = recordsets[0][0] as { equipo_id: string | null; unidad: string | null; fecha_referencia: Date | null };
-    if (!head.equipo_id) return null;
+    const recordsets = result.recordsets as sql.IRecordSet<Fila>[];
+    const head = recordsets[0][0];
 
     // DECIMAL aggregates arrive as numbers; round for the chart
     const r3 = (v: unknown) => Math.round(Number(v) * 1000) / 1000;
-    const puntos = (recordsets[1] as sql.IRecordSet<PuntoDiario>).map((p) => ({
-      dia: p.dia,
+    const puntos = (recordsets[1] ?? []).map((p) => ({
+      dia: p.dia as string,
       promedio: r3(p.promedio),
       minimo: r3(p.minimo),
       maximo: r3(p.maximo),
       lecturas: Number(p.lecturas),
     }));
-    return { variable, unidad: head.unidad ?? '', fecha_referencia: head.fecha_referencia, puntos };
+    return {
+      variable,
+      unidad: (head.unidad as string | null) ?? '',
+      fecha_referencia: (head.fecha_referencia as Date | null) ?? null,
+      puntos,
+    };
   } catch (err) {
     if (isConnectionError(err)) throw new DbUnavailableError(err);
+    if (err instanceof sql.RequestError && err.message === SP_EQUIPO_NO_ENCONTRADO) return null;
     throw err;
   }
 }

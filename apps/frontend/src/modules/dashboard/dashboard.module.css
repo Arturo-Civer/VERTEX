@@ -1333,6 +1333,32 @@
   color: var(--vx-danger);
 }
 
+/* Desktop: full state label */
+.eventStateShort {
+  display: none;
+}
+
+/* Phones (everything that is not desktop): short label and tighter cells,
+   so the 5 columns fit a 360 px screen without horizontal scroll */
+@media not all and (min-width: 768px) and (min-height: 501px) {
+  .eventsTable th,
+  .eventsTable td {
+    padding-inline: 4px;
+  }
+
+  .eventState {
+    padding: 2px 6px;
+  }
+
+  .eventStateLong {
+    display: none;
+  }
+
+  .eventStateShort {
+    display: inline;
+  }
+}
+
 @media (min-width: 768px) and (min-height: 501px) {
   .eventsRange {
     min-height: 32px;
@@ -1438,6 +1464,28 @@
 @media (min-width: 768px) and (min-height: 501px) {
   .mobileOnly {
     display: none;
+  }
+}
+
+/* Very narrow phones (≤ 340px, e.g. 320px): smaller table text so the
+   events table still fits without horizontal scroll */
+@media (max-width: 340px) {
+  .eventsTable {
+    font-size: 11px;
+  }
+
+  .eventsTable th,
+  .eventsTable td {
+    padding-inline: 3px;
+  }
+
+  .eventsTime {
+    font-size: 10px;
+  }
+
+  .eventState {
+    padding: 2px 4px;
+    font-size: 11px;
   }
 }
 
