@@ -148,14 +148,17 @@ if (Test-Port $FrontendPort) {
 # ---------------------------------------------------------------------------
 # 4. Navegador
 # ---------------------------------------------------------------------------
-Write-Step "Esperando a que el frontend responda en $FrontendUrl"
+# El backend solo abre el puerto tras conectar con SQL Server. Si el navegador
+# se abre antes, el dashboard recibe "Sin conexion con el servidor" y la dona
+# se queda en 0 hasta cambiar de CERO o de periodo.
+Write-Step "Esperando a que el backend (puerto $BackendPort) y el frontend respondan"
 $ready = $false
-for ($i = 0; $i -lt 60 -and -not $ready; $i++) {
-    $ready = Test-Port $FrontendPort
+for ($i = 0; $i -lt 90 -and -not $ready; $i++) {
+    $ready = (Test-Port $BackendPort) -and (Test-Port $FrontendPort)
     if (-not $ready) { Start-Sleep -Seconds 1 }
 }
 if (-not $ready) {
-    Write-Warn 'El frontend tarda en arrancar; abriendo el navegador de todas formas.'
+    Write-Warn 'El backend o el frontend tardan en arrancar; revisa sus terminales. Abriendo el navegador de todas formas.'
 }
 Start-Process $FrontendUrl
 Write-Ok 'Navegador abierto'

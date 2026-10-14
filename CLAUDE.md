@@ -138,7 +138,8 @@ Ningún `.env` se sube a git (`.gitignore`). Cada carpeta tiene su `.env.example
 - verifica el puerto `DB_PORT`;
 - ejecuta `npm install` si falta `node_modules`;
 - abre dos terminales ("VERTEX Backend" y "VERTEX Frontend") con `npm run dev`, sin duplicarlas si el 3000 o el 5173 ya están ocupados;
-- espera a Vite y abre `http://localhost:5173`.
+- espera a que respondan el backend (3000) y Vite (5173), y abre `http://localhost:5173`.
+  - El backend solo abre el puerto tras conectar con SQL Server. Si el dashboard carga antes, sus peticiones fallan ("Sin conexión con el servidor"), la dona se queda en 0 y no se reintenta hasta cambiar de CERO o de período.
 
 ```bash
 # Backend (requiere SQL Server con VERTEX_DEMO instalada)
