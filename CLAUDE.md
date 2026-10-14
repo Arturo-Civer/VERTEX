@@ -101,6 +101,7 @@ database/              migrations/, procedures/, seeds/, scripts/
 scripts/               create_demo_users.ts
 docs/                  INSTALL_DATABASE.md
 instalar.ps1           Instalador de las bases de datos (PowerShell)
+start-vertex.ps1       Arranque de desarrollo: SQL Server + backend + frontend + navegador
 index.html             Página estática antigua ("Dashboard - Inicio"), no es la app React
 ```
 
@@ -131,6 +132,14 @@ Ningún `.env` se sube a git (`.gitignore`). Cada carpeta tiene su `.env.example
 
 ## Comandos de desarrollo
 
+**Arranque rápido:** doble clic en el acceso directo "Iniciar VERTEX" del escritorio, que ejecuta
+`powershell -ExecutionPolicy Bypass -File start-vertex.ps1`. El script:
+- comprueba que el servicio `MSSQLSERVER` está en marcha y, si no, lo arranca (pide permisos de administrador si hacen falta);
+- verifica el puerto `DB_PORT`;
+- ejecuta `npm install` si falta `node_modules`;
+- abre dos terminales ("VERTEX Backend" y "VERTEX Frontend") con `npm run dev`, sin duplicarlas si el 3000 o el 5173 ya están ocupados;
+- espera a Vite y abre `http://localhost:5173`.
+
 ```bash
 # Backend (requiere SQL Server con VERTEX_DEMO instalada)
 cd apps/backend
@@ -153,3 +162,14 @@ npm run lint         # oxlint
 - No hay dependencias de gráficos: la dona y la tendencia son SVG puro. Los íconos son SVG inline.
 - Nunca guardar contraseñas, tokens ni hashes en archivos versionados.
 - Commits y push solo cuando el usuario lo apruebe explícitamente ("aprobado").
+
+## Reglas de trabajo con Claude
+
+**Regla de contexto**
+- Al iniciar una sesión nueva (primera conversación del día), leer CLAUDE.md una sola vez y confirmar que se leyó.
+- Durante la sesión NO volver a leerlo salvo que el usuario lo pida.
+
+**Regla de actualización**
+- Al completar una tarea aprobada, preguntar: "¿Apruebas guardar estos cambios en CLAUDE.md?"
+- Solo si el usuario responde "sí" o "aprobado", actualizar CLAUDE.md.
+- No hacer commit de CLAUDE.md hasta que el usuario diga "aprobado".
