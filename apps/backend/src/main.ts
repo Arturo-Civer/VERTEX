@@ -22,6 +22,9 @@ async function main() {
     user: requireEnv('DB_USER'),
     password: requireEnv('DB_PASSWORD'),
     database: requireEnv('DB_NAME'),
+    // Default 15 s. sp_vx_resumen_estados over all the data takes ~2 s, but
+    // the first call after SQL Server restarts (empty cache) can take ~10 s
+    requestTimeout: 30_000,
     options: {
       encrypt: true,
       // Local SQL Server uses a self-signed certificate; set to "false"

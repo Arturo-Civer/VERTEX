@@ -1,6 +1,9 @@
 import { useId } from 'react';
-import { CERO_OPTIONS, PERIOD_OPTIONS } from './donutSimulation';
-import type { CeroId, PeriodId } from './donutSimulation';
+import { CERO_OPTIONS } from './donutSimulation';
+import type { CeroId } from './donutSimulation';
+import { PeriodoSelector } from './PeriodoSelector';
+import type { PeriodoFechas } from './PeriodoSelector';
+import type { Periodo } from './periodo';
 import styles from './dashboard.module.css';
 
 /** Result of checking the selected CERO against the backend */
@@ -12,10 +15,11 @@ export type CeroCheck =
 
 interface DonutFiltersProps {
   cero: CeroId;
-  period: PeriodId;
+  /** Dates of the shared period (donut, events table and trend chart) */
+  periodoFechas?: PeriodoFechas;
   ceroCheck: CeroCheck;
   onCeroChange: (cero: CeroId) => void;
-  onPeriodChange: (period: PeriodId) => void;
+  onPeriodoChange: (periodo: Periodo) => void;
 }
 
 function CheckIcon() {
@@ -63,8 +67,12 @@ const CHECK_CLASS: Record<CeroCheck['status'], string> = {
   error: styles.filterSelectError,
 };
 
-/** CERO + period selectors that drive the donut */
-export function DonutFilters({ cero, period, ceroCheck, onCeroChange, onPeriodChange }: DonutFiltersProps) {
+/**
+ * CERO + period selectors. The period is a free date range (two calendars);
+ * it drives the donut, the events table and the trend chart, like the fixed
+ * periods of the table buttons.
+ */
+export function DonutFilters({ cero, periodoFechas, ceroCheck, onCeroChange, onPeriodoChange }: DonutFiltersProps) {
   const ceroId = useId();
   const periodId = useId();
   const errorId = useId();
@@ -108,18 +116,11 @@ export function DonutFilters({ cero, period, ceroCheck, onCeroChange, onPeriodCh
           <label htmlFor={periodId} className={styles.filterLabel}>
             Período
           </label>
-          <select
+          <PeriodoSelector
             id={periodId}
-            className={styles.filterSelect}
-            value={period}
-            onChange={(e) => onPeriodChange(e.target.value as PeriodId)}
-          >
-            {PERIOD_OPTIONS.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.label}
-              </option>
-            ))}
-          </select>
+            fechas={periodoFechas}
+            onAplicar={(desde, hasta) => onPeriodoChange({ desde, hasta })}
+          />
         </div>
       </div>
 

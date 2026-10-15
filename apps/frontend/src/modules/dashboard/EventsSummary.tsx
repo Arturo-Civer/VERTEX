@@ -1,15 +1,18 @@
-import { useId, useState } from 'react';
+import { useId } from 'react';
 import type { ValidationStatus } from '../../contracts/dashboard';
-import { useBloques } from './useBloques';
+import type { BloquesData } from './bloques.service';
+import { esDias } from './periodo';
+import type { Periodo } from './periodo';
+import type { BackendState } from './useBackend';
 import styles from './dashboard.module.css';
 
+/** Fixed periods of the table: they set the same shared period as the donut selector */
 const RANGE_OPTIONS = [
-  { id: '7', label: '7 días', days: 7 },
-  { id: '15', label: '15 días', days: 15 },
-  { id: '30', label: '30 días', days: 30 },
-  { id: 'todo', label: 'Todo', days: null },
+  { id: '7', label: '7 días', dias: 7 },
+  { id: '15', label: '15 días', dias: 15 },
+  { id: '30', label: '30 días', dias: 30 },
+  { id: 'todo', label: 'Todo', dias: null },
 ] as const;
-type RangeId = (typeof RANGE_OPTIONS)[number]['id'];
 
 // corto: label on phones, as in the donut legend, so the table fits 360 px
 const ESTADOS: Record<ValidationStatus, { label: string; corto: string; className: string }> = {
@@ -51,33 +54,34 @@ function DateCell({ value }: { value: string }) {
 }
 
 interface EventsSummaryProps {
-  cero: string;
+  /** Blocks of the shared period: the same request as the donut */
+  state: BackendState<BloquesData>;
+  periodo: Periodo;
+  onPeriodoChange: (periodo: Periodo) => void;
 }
 
 /**
  * "Resumen de eventos": state blocks of the selected CERO, as classified by
- * dbo.sp_vx_resumen_estados (the same calculation as the donut)
+ * dbo.sp_vx_resumen_estados. The buttons set fixed periods (up to the latest
+ * record); a custom range from the donut selector leaves none checked.
  */
-export function EventsSummary({ cero }: EventsSummaryProps) {
+export function EventsSummary({ state, periodo, onPeriodoChange }: EventsSummaryProps) {
   const name = useId();
-  const [range, setRange] = useState<RangeId>('30');
-  const days = RANGE_OPTIONS.find((r) => r.id === range)?.days ?? null;
-  const state = useBloques(cero, days);
 
   return (
     <div className={styles.card}>
       <h3 className={styles.cardTitle}>Resumen de eventos</h3>
 
       <fieldset className={styles.eventsRanges}>
-        <legend className={styles.srOnly}>Período de la tabla</legend>
+        <legend className={styles.srOnly}>Período</legend>
         {RANGE_OPTIONS.map((r) => (
           <label key={r.id} className={styles.eventsRange}>
             <input
               type="radio"
               name={name}
               value={r.id}
-              checked={range === r.id}
-              onChange={() => setRange(r.id)}
+              checked={esDias(periodo, r.dias)}
+              onChange={() => onPeriodoChange({ dias: r.dias })}
             />
             <span>{r.label}</span>
           </label>
@@ -85,7 +89,7 @@ export function EventsSummary({ cero }: EventsSummaryProps) {
       </fieldset>
 
       <div className={styles.eventsBody} aria-busy={state.status === 'loading' || undefined}>
-        {state.status === 'loading' && (
+        {(state.status === 'loading' || state.status === 'idle') && (
           <div className={styles.eventsMessage} role="status">
             <span className={styles.eventsSpinner} aria-hidden="true" />
             Cargando eventos…

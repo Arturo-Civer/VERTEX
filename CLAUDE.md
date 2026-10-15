@@ -16,6 +16,8 @@ Express y base de datos SQL Server.
     - **Demo** (`VITE_DEMO_MODE=true`, para Netlify): valida contra `VITE_DEMO_EMAIL` / `VITE_DEMO_PASSWORD` sin backend y genera un token local `{ demo: true, exp: +8h }` sin firma real.
   - `App.tsx`: vista `'login' | 'dashboard'`. Si hay un token vigente, entra directo al dashboard.
 - **Dashboard** (`src/modules/dashboard/`): en modo normal, la dona, el estado del motor, la tendencia y la tabla de eventos leen la base; el resto sigue simulado (`mockData.ts`, `donutSimulation.ts`). En modo demo todo es simulado.
+  - **Período compartido** (`periodo.ts`: `{ dias }` o `{ desde, hasta }` AAAA-MM-DD, por defecto 30 días): uno solo para la dona, la tabla de eventos y la tendencia. Lo cambian el selector de fechas y los botones de la tabla.
+  - `PeriodoSelector.tsx`: botón con las fechas que abre dos calendarios nativos (Fecha inicio / Fecha fin) con Aplicar / Cancelar; Escape o clic fuera cierran; límites = primer y último registro del equipo; valida inicio ≤ fin.
   - Selectores CERO / Período. Al cambiar el CERO se consulta `GET /api/equipos/:codigo` (`equipos.service.ts`):
     - mientras espera, spinner;
     - si existe, borde verde y ✓;
@@ -23,15 +25,20 @@ Express y base de datos SQL Server.
     - Si el usuario cambia de nuevo, se cancela la consulta anterior. En modo demo no se consulta.
   - Panel de la dona: info del motor, unidades h/d/sem/mes y leyenda en una sola fila.
     - Centro de la dona: total con la letra de la unidad pegada (`720H`, `30,0D`, `4,3S`, `1,0M`) y debajo el período en líneas sin partir: "Del dd/mm al dd/mm", el año ("2026", o "2025 – 2026" si cruza de año) y, en modo normal, "(última medición)". Letra de la fecha `clamp(6px, 5.8cqi, 12px)`; cabe en los 5 layouts (verificado hasta un teléfono de 320 px).
-    - Modo normal: horas por estado de `GET /api/equipos/:codigo/resumen?dias=N` (el período del selector: 7, 15, 30, 90 o 180 días) y el estado del motor (`estado_actual`). Debajo de la leyenda solo "Cargando…", "Sin mediciones…" o el error.
-    - Modo demo: `demoResumen` (`bloques.service.ts`) suma los mismos bloques simulados que la tabla y pasa por `donutFromResumen`, igual que el modo normal: dona, estado del motor y tabla siempre coinciden. El período termina en el último registro simulado (14/10).
+    - Una sola petición `GET /api/equipos/:codigo/bloques` (`fetchBloques`) alimenta la dona (`horas`), el estado del motor (`estado_actual`) y la tabla de eventos: siempre coinciden. Debajo de la leyenda solo "Cargando…", "Sin mediciones…" o el error.
+    - El fin del período se muestra como el último día incluido (`ultimoDia`); "(última medición)" solo si el período llega al último registro.
+    - Modo demo: `demoBloquesData` (`bloques.service.ts`) devuelve la misma forma con bloques simulados, para días o rangos de fechas. El período termina en el último registro simulado (14/10).
     - Producto y línea siguen simulados.
-  - Tendencia con selector de variable (corriente, vibración, temperatura, voltaje y producción) y línea nominal (valores fijos en `mockData.ts`: 5,2 A, 2,5 mm/s, 60 °C y 220 V).
-    - Modo normal: promedio diario con el motor encendido de `GET /api/equipos/:codigo/mediciones`, en la misma ventana que la dona. Producción sigue simulada y lo indica.
-    - Con muchos puntos muestra como máximo 8 etiquetas en el eje X y oculta los marcadores a partir de 32 puntos.
-  - `operacion.service.ts` (fetch de resumen y mediciones) y `useBackend.ts` (hook genérico con cancelación por clave).
-  - **Resumen de eventos** (`EventsSummary.tsx`, `useBloques.ts`, `bloques.service.ts`), en el lugar de las antiguas barras por turno:
-    - tabla # / Inicio / Fin / Duración / Estado con los bloques de estado del CERO seleccionado (el mismo cálculo que la dona), y selector 7 / 15 / 30 días / Todo (por defecto 30);
+  - **Tendencia** (`TrendChart.tsx`, SVG puro) con selector de variable (corriente, vibración, temperatura, voltaje y producción) y línea nominal (valores fijos en `mockData.ts`: 5,2 A, 2,5 mm/s, 60 °C y 220 V).
+    - Modo normal: `GET /api/equipos/:codigo/mediciones` en el período compartido. Cada punto es el promedio de un intervalo con el motor encendido; el intervalo lo elige el SP según la duración (15 min, 1 h, 4 h o diario) y se indica en el aviso ("Promedio cada 4 h con el motor encendido"). Producción sigue simulada y lo indica.
+    - Eje X de tiempo real con exactamente el período (el mismo de la dona y la tabla); la línea se corta donde no hay datos. Fechas en UTC alineadas a las 00:00 ("dd/mm" o "dd/mm hh:mm"), tantas como quepan por ancho. Títulos de ejes "Variable (unidad)" y "Fecha (UTC)".
+    - Capas: máximo de cada intervalo (azul claro), umbral (rojo oscuro punteado si está habilitado; gris "(desh.)" si no, y solo si cae dentro del rango de datos), puntos con marcas de evento en rojo con tooltip, y bandas de fondo Evento (#FFEBEE) / Mantenimiento (#FFF3E0) con los bloques de la tabla. Leyenda debajo, solo con lo que aparece.
+    - **Se dibuja al tamaño real de su caja** (`ResizeObserver`, 1 unidad SVG = 1 px): ocupa todo el espacio de la tarjeta y la letra queda en 11 px en cualquier pantalla. Teléfono: caja 3:2 (máx. 320 px de alto); desktop: el alto que queda en la tarjeta. Título y aviso van en la misma línea.
+    - Mientras carga un período nuevo solo usa datos del período actual (no mezcla el eje de uno con los datos de otro).
+    - Modo demo: `demoMedicionesData` (`operacion.service.ts`) simula lecturas por minuto en los bloques ENCENDIDO del período demo, agrupadas como el SP, con los mismos umbrales que la base (temperatura que sube de 40 a 62 °C en el turno). La marca de evento simulada (10 min: vibración en CERO-010 el 21/09 06:11, temperatura en CERO-012 el 09/10 09:30) sale igual en la gráfica y en las `marcas` de los bloques.
+  - `operacion.service.ts` (fetch de mediciones y su simulación demo) y `useBackend.ts` (hook genérico con cancelación por clave).
+  - **Resumen de eventos** (`EventsSummary.tsx`, `bloques.service.ts`), en el lugar de las antiguas barras por turno:
+    - tabla # / Inicio / Fin / Duración / Estado con los bloques de estado del CERO seleccionado (el mismo cálculo que la dona), y botones 7 / 15 / 30 días / Todo que cambian el período compartido;
     - # numera las filas en el orden mostrado: 1 es el bloque más reciente; la regla que decidió cada bloque sale como `title` de la fila;
     - Encendido / Apagado / Evento / Mantenimiento; las horas se muestran en UTC, tal como están guardadas;
     - modo normal: `GET /api/equipos/:codigo/bloques`;
@@ -65,17 +72,22 @@ Express y base de datos SQL Server.
   - 503 `{ encontrado: false, mensaje: "Sin conexión a la base de datos" }` si SQL Server no responde.
   - Sin autenticación por ahora; es una prueba de conexión dashboard → backend → base de datos.
 - **El cálculo de estados vive en `dbo.sp_vx_resumen_estados`** (ver Base de datos); Node solo lo ejecuta (`ejecutarResumenEstados` en `equipos.service.ts`). No hay lógica de estados en Node ni en el frontend.
-- **`GET /api/equipos/:codigo/resumen?dias=N`** (`dias` obligatorio): horas por estado para la dona.
-  - 200 `{ fecha_referencia, desde, horas: { ENCENDIDO, APAGADO, EVENTO, MANTENIMIENTO }, estado_actual, ciclos, mantenimientos }`.
+- **Período** (`leerPeriodo` en el controller, tipo `Periodo` en el service) en `/resumen`, `/bloques` y `/mediciones`:
+  - `?dias=N` (1 a 3650): de `MAX(event_time) - N días` al último registro;
+  - `?desde=AAAA-MM-DD&hasta=AAAA-MM-DD`: días UTC con los dos extremos incluidos (hasta las 24:00 de `hasta`), recortado al último registro;
+  - sin parámetros: toda la historia (`/resumen` exige uno de los dos).
+  - 400 si no son válidos; 404 / 503 / 500 con `{ mensaje }`. Nunca se usa el reloj del servidor.
+- **`GET /api/equipos/:codigo/bloques`**: lo usa el dashboard para la dona y la tabla (una sola ejecución del SP).
+  - 200 `{ fecha_referencia, desde, primer_registro, ultimo_registro, horas: { ENCENDIDO, APAGADO, EVENTO, MANTENIMIENTO }, estado_actual, bloques: [{ inicio, fin, duracion_min, segmento, regla, marcas }] }`, bloques del más reciente al más antiguo.
+- **`GET /api/equipos/:codigo/resumen`**: horas por estado más el detalle de cálculo (el dashboard ya no lo usa).
+  - 200 `{ fecha_referencia, desde, primer_registro, ultimo_registro, horas, estado_actual, ciclos, mantenimientos }`.
   - `ciclos`: `{ inicio, ultimo_registro, registros_encendido, registros_encendido_con_evento, porcentaje, estado_evento, estado_evento_desde, primera_marca }`; `mantenimientos`: `{ inicio, fin, duracion_min }`.
   - Sin mediciones (CERO-011): `fecha_referencia: null`, horas en cero y listas vacías.
-- **`GET /api/equipos/:codigo/bloques?dias=N`** (sin `dias`: toda la historia): bloques consecutivos con el mismo estado, del más reciente al más antiguo.
-  - 200 `{ fecha_referencia, desde, bloques: [{ inicio, fin, duracion_min, segmento, regla, marcas }] }`.
-- `/resumen` y `/bloques`: 400 si `dias` no es un entero de 1 a 3650; 404 / 503 / 500 con `{ mensaje }`. Ventana: de `MAX(event_time) - N días` (o el primer registro, si es posterior) al último registro. Nunca usan el reloj del servidor.
 - `GET /api/equipos/:codigo/intervalos` ya no existe (leía `IntervalosFuncionamiento`).
-- **`GET /api/equipos/:codigo/mediciones?variable=CODIGO&dias=N`**: promedio, mínimo, máximo y número de lecturas por día (UTC) de una variable, solo con el motor encendido. Solo ejecuta `dbo.sp_vx_tendencia_variable`.
+- **`GET /api/equipos/:codigo/mediciones?variable=CODIGO`** + período: estadísticas por intervalo de una variable, solo con el motor encendido. Solo ejecuta `dbo.sp_vx_tendencia_variable`.
   - `variable`: CORRIENTE_MOTOR, TEMPERATURA_MOT, VIBRACION_MOT, VOLTAJE_MOTOR, FRECUENCIA_RED, POTENCIA_MOT o RPM_MOTOR; si no, 400.
-  - 200 `{ variable, unidad, fecha_referencia, puntos: [{ dia, promedio, minimo, maximo, lecturas }] }`; sin `dias`, todos los días.
+  - 200 `{ variable, unidad, fecha_referencia, desde, minutos_punto, umbral: { min, max, habilitado } | null, puntos: [{ inicio, dia, promedio, minimo, maximo, lecturas, marcas }] }`.
+- `requestTimeout` de `mssql`: 30 s (`main.ts`); "Todo" puede tardar varios segundos.
 - Pendiente:
   - middlewares `authenticate` / `authorize` / `reauthenticate` (vacíos), así que todavía no hay rutas protegidas;
   - el resto de dominios (data-acquisition, hours-calculation, mantenimiento, audit), que son archivos vacíos.
@@ -115,12 +127,17 @@ Express y base de datos SQL Server.
     - Revisa el catálogo, las mediciones con una unidad distinta a la de su variable, los sensores asociados a otra variable y las mediciones cuya variable no es la de su sensor; además cuenta las mediciones por variable.
     - El resumen final debe decir `OK`.
 - **Cálculo de estados** (ENCENDIDO / APAGADO / EVENTO / MANTENIMIENTO): `database/procedures/R__sp_vx_resumen_estados.sql` (UTF-16 LE con BOM).
-  - `EXEC dbo.sp_vx_resumen_estados @equipo_codigo, @desde, @hasta | @dias, @detalle`. Devuelve: 1) minutos por segmento y estado actual; 2) ciclos con contadores; 3) mantenimientos detectados; 4) con `@detalle = 1`, bloques con su regla y marcas.
+  - `EXEC dbo.sp_vx_resumen_estados @equipo_codigo, @desde, @hasta | @dias, @detalle`. `@hasta` se recorta al último registro. Devuelve: 1) minutos por segmento, estado actual, `primer_registro` y `ultimo_registro`; 2) ciclos con contadores; 3) mantenimientos detectados; 4) con `@detalle = 1`, bloques con su regla y marcas.
   - Solo lee `Mediciones`: **nunca se modifican sus filas** ni se usan etiquetas guardadas (`IntervalosFuncionamiento`, `calidad`…); el estado sale de los valores y de `event_time` (nunca `received_time` ni relojes del servidor).
   - Registro = filas del equipo con el mismo `event_time`. El tiempo hasta el siguiente registro se asigna al primero.
   - Reglas: 1) hueco > `TOLERANCIA_HUECO_MIN` entre registros → MANTENIMIENTO y ciclo nuevo (los huecos menores son paquetes perdidos y conservan la regla del registro anterior); 2) contadores del ciclo: registros encendidos y encendidos con marca; si el % supera `PORCENTAJE_EVENTO`, el ciclo entra en estado de evento hasta el siguiente mantenimiento; 3) ciclo en estado de evento → EVENTO; 4a) corriente > 0 → ENCENDIDO (la marca queda registrada); 4b) corriente 0 con alguna marca desde el último mantenimiento → EVENTO; 4c) si no → APAGADO.
   - Corriente 0 = `CORRIENTE_MOTOR <= CORRIENTE_CERO_MAX` (en la demo el motor apagado marca 0,001–0,081 A, no 0); sin lectura de corriente se usa `ESTADO_MOTOR = 0`. Marca = alguna variable habilitada fuera de `UMBRAL_MAX` / `UMBRAL_MIN`.
-  - Para un período lee la historia desde el último mantenimiento anterior a su inicio. Tiempos (con caché): 7 días ~0,3–0,5 s, toda la historia ~1,3–1,8 s. La lectura va con `OPTION (MAXDOP 1)` (en paralelo variaba de 0,4 a 12 s) y un columnstore vacío en `#r` habilita el modo batch en las funciones de ventana. La primera llamada tras cambiar el SP tarda más (compila).
+  - Para un período lee la historia desde el último mantenimiento anterior a su inicio.
+  - Rendimiento:
+    - La lectura (`INSERT #r`) usa `WITH (INDEX (IX_Mediciones_Equipo_Tiempo))` y `OPTION (MAXDOP 1, ORDER GROUP, LOOP JOIN)`: la agregación hash se desbordaba a tempdb (~10 s) y en paralelo variaba de 0,4 a 12 s. Un columnstore vacío en `#r` habilita el modo batch en las funciones de ventana.
+    - `#t` calcula el número de bloque (`LAG` + suma acumulada) con PK `(bloque, event_time)` y `OPTION (MAXDOP 1, RECOMPILE)`, así el resultado 4 agrupa sin ordenar (`ORDER GROUP`). Antes se desbordaba (1 244 páginas, picos de 22 s).
+    - Tiempos en el portátil de desarrollo: 7 días ~1,5–2,5 s, toda la historia ~5–8 s (casi todo CPU; con batería la CPU baja a 1,1 GHz). Con poca memoria libre SQL Server reduce las concesiones y alguna sentencia se desborda; recomendado fijar `min server memory` (p. ej. 1 GB).
+    - La primera llamada tras cambiar el SP tarda más (compila).
   - Parámetros: `database/scripts/05_parametros_calculo_estados.sql` (idempotente, MERGE; re-ejecutarlo restablece estos valores). Se ejecuta con un login con escritura (`-E`), no con `app_demo_user`.
 
 | Tabla | Clave | Valor |
@@ -135,8 +152,12 @@ Express y base de datos SQL Server.
 | | TEMPERATURA_MOT `UMBRAL_MAX` / `HABILITADO` | 65 °C / 1 |
 
   - Resultado en la demo (CERO-010): 5 ciclos separados por 4 mantenimientos (6 h, 17,5 h, 26 h y 5 h); ninguno supera el 30 %, así que todo el EVENTO viene de la regla 4b (p. ej. desde la marca de vibración del 21/09 06:11 hasta el mantenimiento del 28/09). Septiembre: ENCENDIDO 21 412, APAGADO 8 258, EVENTO 10 920, MANTENIMIENTO 2 610 min.
-- **Tendencia**: `database/procedures/R__sp_vx_tendencia_variable.sql` (UTF-16 LE con BOM). `EXEC dbo.sp_vx_tendencia_variable @equipo_codigo, @variable_codigo, @dias` → 1) `unidad`, `fecha_referencia`; 2) por día: promedio, mínimo, máximo, lecturas.
-  - Encendido con el mismo criterio que el cálculo de estados: corriente > `CORRIENTE_CERO_MAX`; sin corriente, `ESTADO_MOTOR <> 0`. ~0,1–0,5 s.
+- **Tendencia**: `database/procedures/R__sp_vx_tendencia_variable.sql` (UTF-16 LE con BOM). `EXEC dbo.sp_vx_tendencia_variable @equipo_codigo, @variable_codigo, @dias | @desde, @hasta [, @minutos_punto]`:
+  - 1) `unidad`, `fecha_referencia`, `desde`, `minutos_punto`, `umbral_min`, `umbral_max`, `umbral_habilitado`;
+  - 2) por intervalo (`inicio`, `dia`): promedio, mínimo, máximo, lecturas y `marcas` (lecturas fuera del umbral; 0 si está deshabilitado).
+  - `@minutos_punto` automático según la duración: ≤ 2 días → 15 min; ≤ 16 días → 60; ≤ 60 días → 240; más → 1440. Intervalos alineados a las 00:00 UTC.
+  - Encendido con el mismo criterio que el cálculo de estados: corriente > `CORRIENTE_CERO_MAX`; sin corriente, `ESTADO_MOTOR <> 0`.
+  - Usa variables locales `@inicio` / `@fin` y `OPTION (RECOMPILE)`: con el plan del primer período (parameter sniffing) otros períodos eran lentísimos. ~0,1–0,5 s.
   - `sp_vx_get_serie_variable` (puntos sueltos con historial de modificaciones) es otro propósito y no lo usa el dashboard.
 - Login SQL `app_demo_user`: solo `SELECT` / `EXECUTE` en `VERTEX_DEMO` (`DENY INSERT/UPDATE/DELETE`).
 - **Datos de prueba (solo desarrollo):**

@@ -1,6 +1,7 @@
 import { API_URL } from '../../shared/api';
 import type { ValidationStatus } from '../../contracts/dashboard';
-import type { ResumenData } from './operacion.service';
+import { esRango, periodoQuery } from './periodo';
+import type { Periodo } from './periodo';
 
 /** Consecutive time with the same state (dbo.sp_vx_resumen_estados) */
 export interface Bloque {
@@ -14,10 +15,20 @@ export interface Bloque {
   marcas: number;
 }
 
+/**
+ * GET /api/equipos/:codigo/bloques: one execution of dbo.sp_vx_resumen_estados
+ * feeds both the donut (horas, estado_actual) and the events table (bloques)
+ */
 export interface BloquesData {
-  /** Latest record; the day window counts back from it (null: no records) */
+  /** Period end, clipped to the latest record (null: no records) */
   fecha_referencia: string | null;
+  /** Period start, clipped to the first record */
   desde: string | null;
+  /** First and latest record of the equipment: the range a period can take */
+  primer_registro: string | null;
+  ultimo_registro: string | null;
+  horas: Record<ValidationStatus, number>;
+  estado_actual: ValidationStatus | null;
   /** Newest first */
   bloques: Bloque[];
 }
@@ -27,19 +38,14 @@ const GENERIC_ERROR = 'No se pudieron consultar los eventos';
 const NOT_FOUND = 'Equipo no encontrado';
 
 /**
- * GET /api/equipos/:codigo/bloques?dias=N (`dias` null: all the data).
- * Rejects with the backend's `mensaje` (400 / 404 / 503 / 500) or a network
+ * GET /api/equipos/:codigo/bloques for the period. Rejects with the backend's `mensaje` (400 / 404 / 503 / 500) or a network
  * error message. An aborted request rejects with an AbortError.
  */
-export async function fetchBloques(
-  codigo: string,
-  dias: number | null,
-  signal?: AbortSignal,
-): Promise<BloquesData> {
-  const query = dias === null ? '' : `?dias=${dias}`;
+export async function fetchBloques(codigo: string, periodo: Periodo, signal?: AbortSignal): Promise<BloquesData> {
+  const query = periodoQuery(periodo);
   let res: Response;
   try {
-    res = await fetch(`${API_URL}/api/equipos/${encodeURIComponent(codigo)}/bloques${query}`, {
+    res = await fetch(`${API_URL}/api/equipos/${encodeURIComponent(codigo)}/bloques${query ? `?${query}` : ''}`, {
       signal,
     });
   } catch (err) {
@@ -47,27 +53,26 @@ export async function fetchBloques(
     throw new Error(NETWORK_ERROR);
   }
 
-  const body = (await res.json().catch(() => null)) as
-    | (Partial<BloquesData> & { mensaje?: string })
-    | null;
+  const body = (await res.json().catch(() => null)) as (BloquesData & { mensaje?: string }) | null;
 
-  if (res.ok && body && Array.isArray(body.bloques)) {
-    return { fecha_referencia: body.fecha_referencia ?? null, desde: body.desde ?? null, bloques: body.bloques };
-  }
+  if (res.ok && body && Array.isArray(body.bloques)) return body;
   throw new Error(body?.mensaje || GENERIC_ERROR);
 }
 
 // ── Demo mode (Netlify, no backend) ─────────────────────────
 // Simulated blocks with the CERO-010 seed shifts: weekdays 06–22 h,
-// Saturday 06–14 h, Sunday off (UTC). After the event mark every stop
-// counts as EVENTO until the next maintenance. CERO-011 / 012 vary the
-// dates; CERO-013 simulates a missing equipment.
+// Saturday 06–14 h, Sunday off (UTC). The event mark lasts MARCA_MIN
+// minutes of one variable; after it every stop counts as EVENTO until the
+// next maintenance. CERO-011 / 012 vary the dates; CERO-013 simulates a
+// missing equipment.
 
 interface DemoPerfil {
   desde: string;
   hasta: string;
   /** First record with an event mark (null: none) */
   marca: string | null;
+  /** dbo.Variables.codigo out of its threshold during the mark */
+  variableMarca?: string;
   mantenimientos: { inicio: string; fin: string }[];
 }
 
@@ -76,6 +81,7 @@ const DEMO_PERFILES: Record<string, DemoPerfil> = {
     desde: '2026-08-15T00:00:00Z',
     hasta: '2026-10-14T04:00:00Z',
     marca: '2026-09-21T06:11:00Z',
+    variableMarca: 'VIBRACION_MOT',
     mantenimientos: [
       { inicio: '2026-09-10T14:30:00Z', fin: '2026-09-11T08:00:00Z' },
       { inicio: '2026-09-28T07:00:00Z', fin: '2026-09-29T09:00:00Z' },
@@ -92,6 +98,7 @@ const DEMO_PERFILES: Record<string, DemoPerfil> = {
     desde: '2026-09-20T00:00:00Z',
     hasta: '2026-10-14T04:00:00Z',
     marca: '2026-10-09T09:30:00Z',
+    variableMarca: 'TEMPERATURA_MOT',
     mantenimientos: [{ inicio: '2026-09-30T06:00:00Z', fin: '2026-09-30T20:00:00Z' }],
   },
 };
@@ -99,6 +106,16 @@ const DEMO_PERFILES: Record<string, DemoPerfil> = {
 const MIN_MS = 60_000;
 const HORA_MS = 60 * MIN_MS;
 const DAY_MS = 24 * HORA_MS;
+/** Minutes of the simulated event mark */
+const MARCA_MIN = 10;
+
+/** Simulated event mark of a CERO: [start, end) in ms and its variable (null: none) */
+export function demoMarca(codigo: string): { inicio: number; fin: number; variable: string } | null {
+  const p = DEMO_PERFILES[codigo];
+  if (!p?.marca || !p.variableMarca) return null;
+  const inicio = Date.parse(p.marca);
+  return { inicio, fin: inicio + MARCA_MIN * MIN_MS, variable: p.variableMarca };
+}
 
 /** Running window of a UTC day by the seed shifts (null: Sunday, off) */
 function turno(dia: number): [number, number] | null {
@@ -125,7 +142,7 @@ function demoBloques(p: DemoPerfil): Bloque[] {
 
   const bloques: Bloque[] = [];
   // `as`: TS narrows a `null` initializer and misses the loop's assignments
-  let actual = null as { segmento: ValidationStatus; inicio: number } | null;
+  let actual = null as { segmento: ValidationStatus; inicio: number; marcas: number } | null;
   const cerrar = (fin: number) => {
     if (!actual) return;
     bloques.push({
@@ -134,7 +151,7 @@ function demoBloques(p: DemoPerfil): Bloque[] {
       duracion_min: (fin - actual.inicio) / MIN_MS,
       segmento: actual.segmento,
       regla: REGLAS[actual.segmento],
-      marcas: 0,
+      marcas: actual.marcas,
     });
   };
 
@@ -148,45 +165,58 @@ function demoBloques(p: DemoPerfil): Bloque[] {
 
     if (actual?.segmento !== segmento) {
       cerrar(t);
-      actual = { segmento, inicio: t };
+      actual = { segmento, inicio: t, marcas: 0 };
     }
+    if (marca !== null && t >= marca && t < marca + MARCA_MIN * MIN_MS) actual.marcas++;
   }
   cerrar(hasta);
   return bloques.reverse();
 }
 
-/** Demo blocks with the same day window as the backend (counted back from the latest record) */
-export async function demoBloquesData(codigo: string, dias: number | null): Promise<BloquesData> {
-  return demoBloquesSync(codigo, dias);
-}
-
 /**
- * Demo donut hours from the same simulated blocks as the table, so both
- * always agree (the backend does the same from dbo.sp_vx_resumen_estados).
+ * Demo data with the same shape as the backend: the simulated blocks of the
+ * period plus their hours per state, so the donut and the table always agree.
+ * Same period rules: `dias` counts back from the latest record, a date range
+ * covers whole UTC days; both are clipped to the simulated records.
  * Throws "Equipo no encontrado" for an unknown CERO.
  */
-export function demoResumen(codigo: string, dias: number): ResumenData {
-  const { fecha_referencia, desde, bloques } = demoBloquesSync(codigo, dias);
-  const minutos: Record<ValidationStatus, number> = { ENCENDIDO: 0, APAGADO: 0, EVENTO: 0, MANTENIMIENTO: 0 };
-  for (const b of bloques) minutos[b.segmento] += b.duracion_min;
-  const horas = Object.fromEntries(
-    Object.entries(minutos).map(([estado, min]) => [estado, Math.round((min / 60) * 100) / 100]),
-  ) as Record<ValidationStatus, number>;
-  return { fecha_referencia, desde, horas, estado_actual: bloques[0]?.segmento ?? null };
-}
-
-function demoBloquesSync(codigo: string, dias: number | null): BloquesData {
+export function demoBloquesData(codigo: string, periodo: Periodo): BloquesData {
   const perfil = DEMO_PERFILES[codigo];
   if (!perfil) throw new Error(NOT_FOUND);
 
-  const inicio = Date.parse(perfil.desde);
-  const desde = dias === null ? inicio : Math.max(inicio, Date.parse(perfil.hasta) - dias * DAY_MS);
+  const primero = Date.parse(perfil.desde);
+  const ultimo = Date.parse(perfil.hasta);
+  let desde: number;
+  let hasta: number;
+  if (esRango(periodo)) {
+    desde = Date.parse(`${periodo.desde}T00:00:00Z`);
+    hasta = Math.min(ultimo, Date.parse(`${periodo.hasta}T00:00:00Z`) + DAY_MS);
+  } else {
+    hasta = ultimo;
+    desde = periodo.dias === null ? primero : hasta - periodo.dias * DAY_MS;
+  }
+  desde = Math.min(Math.max(desde, primero), hasta);
+
+  // Blocks clipped to the period, as the stored procedure does
   const bloques = demoBloques(perfil)
-    .filter((b) => Date.parse(b.fin) > desde)
+    .filter((b) => Date.parse(b.fin) > desde && Date.parse(b.inicio) < hasta)
     .map((b) => {
-      // Clip the oldest block to the window, as the stored procedure does
-      if (Date.parse(b.inicio) >= desde) return b;
-      return { ...b, inicio: new Date(desde).toISOString(), duracion_min: (Date.parse(b.fin) - desde) / MIN_MS };
+      const inicio = Math.max(Date.parse(b.inicio), desde);
+      const fin = Math.min(Date.parse(b.fin), hasta);
+      return { ...b, inicio: new Date(inicio).toISOString(), fin: new Date(fin).toISOString(), duracion_min: (fin - inicio) / MIN_MS };
     });
-  return { fecha_referencia: perfil.hasta, desde: new Date(desde).toISOString(), bloques };
+
+  const horas: Record<ValidationStatus, number> = { ENCENDIDO: 0, APAGADO: 0, EVENTO: 0, MANTENIMIENTO: 0 };
+  for (const b of bloques) horas[b.segmento] += b.duracion_min / 60;
+  for (const k of Object.keys(horas) as ValidationStatus[]) horas[k] = Math.round(horas[k] * 100) / 100;
+
+  return {
+    fecha_referencia: new Date(hasta).toISOString(),
+    desde: new Date(desde).toISOString(),
+    primer_registro: perfil.desde,
+    ultimo_registro: perfil.hasta,
+    horas,
+    estado_actual: bloques[0]?.segmento ?? null,
+    bloques,
+  };
 }

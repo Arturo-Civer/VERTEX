@@ -58,6 +58,22 @@ export async function findEquipo(codigo: string): Promise<Equipo | null> {
   }
 }
 
+/**
+ * Period of a query: the last `dias` days up to the latest record (null: all
+ * the data), or a date range [desde, hasta). The stored procedures clip it
+ * to the records of the equipment.
+ */
+export type Periodo = { dias: number | null } | { desde: Date; hasta: Date };
+
+/** Inputs @dias / @desde / @hasta of the stored procedures */
+function conPeriodo(request: sql.Request, periodo: Periodo): sql.Request {
+  const rango = 'desde' in periodo;
+  return request
+    .input('dias', sql.Int, rango ? null : periodo.dias)
+    .input('desde', sql.DateTime2(3), rango ? periodo.desde : null)
+    .input('hasta', sql.DateTime2(3), rango ? periodo.hasta : null);
+}
+
 export type EstadoMotor = 'ENCENDIDO' | 'APAGADO' | 'EVENTO' | 'MANTENIMIENTO';
 
 export interface CicloResumen {
@@ -81,8 +97,11 @@ export interface MantenimientoDetectado {
 export interface ResumenEquipo {
   /** Period end: the latest record of the equipment (null: no records) */
   fecha_referencia: Date | null;
-  /** Period start: fecha_referencia - dias, or the first record if later */
+  /** Period start, clipped to the first record */
   desde: Date | null;
+  /** First and latest record of the equipment: the range a period can take */
+  primer_registro: Date | null;
+  ultimo_registro: Date | null;
   horas: Record<EstadoMotor, number>;
   /** Segment of the latest record in the period (null: no records) */
   estado_actual: EstadoMotor | null;
@@ -98,20 +117,19 @@ type Fila = Record<string, unknown>;
 
 /**
  * Runs dbo.sp_vx_resumen_estados (database/procedures), where the state
- * calculation lives, over the last `dias` days of data (null: all of it).
+ * calculation lives, over a period.
  * Null when the equipment does not exist. Throws DbUnavailableError when SQL
  * Server cannot be reached.
  */
 async function ejecutarResumenEstados(
   codigo: string,
-  dias: number | null,
+  periodo: Periodo,
   detalle: boolean,
 ): Promise<sql.IRecordSet<Fila>[] | null> {
   if (codigo.length > MAX_CODIGO_LENGTH) return null;
   try {
-    const result = await new sql.Request()
+    const result = await conPeriodo(new sql.Request(), periodo)
       .input('equipo_codigo', sql.VarChar(MAX_CODIGO_LENGTH), codigo)
-      .input('dias', sql.Int, dias)
       .input('detalle', sql.Bit, detalle)
       .execute('dbo.sp_vx_resumen_estados');
     return result.recordsets as sql.IRecordSet<Fila>[];
@@ -125,12 +143,12 @@ async function ejecutarResumenEstados(
 const horasDeMinutos = (min: unknown) => Math.round((Number(min) / 60) * 100) / 100;
 
 /**
- * Hours in each state over the last `dias` days of data, from
+ * Hours in each state over a period, from
  * dbo.sp_vx_resumen_estados (minutes converted to hours).
  * Null when the equipment does not exist.
  */
-export async function findResumen(codigo: string, dias: number): Promise<ResumenEquipo | null> {
-  const recordsets = await ejecutarResumenEstados(codigo, dias, false);
+export async function findResumen(codigo: string, periodo: Periodo): Promise<ResumenEquipo | null> {
+  const recordsets = await ejecutarResumenEstados(codigo, periodo, false);
   if (!recordsets) return null;
 
   const r = recordsets[0][0];
@@ -150,18 +168,23 @@ export async function findResumen(codigo: string, dias: number): Promise<Resumen
     duracion_min: Number(m.duracion_min),
   }));
 
+  return { ...cabeceraResumen(r), ciclos, mantenimientos };
+}
+
+/** First result of dbo.sp_vx_resumen_estados: period, record range, hours and current state */
+function cabeceraResumen(r: Fila) {
   return {
     fecha_referencia: (r.hasta as Date | null) ?? null,
     desde: (r.desde as Date | null) ?? null,
+    primer_registro: (r.primer_registro as Date | null) ?? null,
+    ultimo_registro: (r.ultimo_registro as Date | null) ?? null,
     horas: {
       ENCENDIDO: horasDeMinutos(r.min_encendido),
       APAGADO: horasDeMinutos(r.min_apagado),
       EVENTO: horasDeMinutos(r.min_evento),
       MANTENIMIENTO: horasDeMinutos(r.min_mantenimiento),
-    },
+    } satisfies Record<EstadoMotor, number>,
     estado_actual: (r.estado_actual as EstadoMotor | null) ?? null,
-    ciclos,
-    mantenimientos,
   };
 }
 
@@ -180,17 +203,23 @@ export interface BloquesEquipo {
   /** Period end: the latest record of the equipment (null: no records) */
   fecha_referencia: Date | null;
   desde: Date | null;
+  primer_registro: Date | null;
+  ultimo_registro: Date | null;
+  /** Hours per state of the period: the donut, from the same call as the blocks */
+  horas: Record<EstadoMotor, number>;
+  estado_actual: EstadoMotor | null;
   /** Newest first */
   bloques: BloqueEstado[];
 }
 
 /**
- * Consecutive blocks with the same state over the last `dias` days of data
- * (null: all of it), newest first, from dbo.sp_vx_resumen_estados.
+ * Consecutive blocks with the same state over a period, newest first, plus
+ * the hours per state of the same execution of dbo.sp_vx_resumen_estados:
+ * the donut and the events table come from a single database query.
  * Null when the equipment does not exist.
  */
-export async function findBloques(codigo: string, dias: number | null): Promise<BloquesEquipo | null> {
-  const recordsets = await ejecutarResumenEstados(codigo, dias, true);
+export async function findBloques(codigo: string, periodo: Periodo): Promise<BloquesEquipo | null> {
+  const recordsets = await ejecutarResumenEstados(codigo, periodo, true);
   if (!recordsets) return null;
 
   const r = recordsets[0][0];
@@ -204,11 +233,7 @@ export async function findBloques(codigo: string, dias: number | null): Promise<
       marcas: Number(b.marcas),
     }))
     .reverse();
-  return {
-    fecha_referencia: (r.hasta as Date | null) ?? null,
-    desde: (r.desde as Date | null) ?? null,
-    bloques,
-  };
+  return { ...cabeceraResumen(r), bloques };
 }
 
 /** Variables the trend chart can request (dbo.Variables.codigo) */
@@ -223,26 +248,37 @@ export const VARIABLES_TENDENCIA = [
 ] as const;
 export type VariableTendencia = (typeof VARIABLES_TENDENCIA)[number];
 
-export interface PuntoDiario {
-  /** YYYY-MM-DD (UTC) */
+/** One point of the trend: an interval of minutos_punto minutes */
+export interface PuntoTendencia {
+  /** Interval start (UTC) */
+  inicio: Date;
+  /** YYYY-MM-DD (UTC) of inicio */
   dia: string;
   promedio: number;
   minimo: number;
   maximo: number;
   lecturas: number;
+  /** Readings out of the variable's threshold (0 when it is disabled) */
+  marcas: number;
 }
 
 export interface MedicionesEquipo {
   variable: VariableTendencia;
   unidad: string;
-  /** Latest measurement of the equipment; the day window counts back from it */
+  /** Period end, clipped to the latest record (null: no records) */
   fecha_referencia: Date | null;
-  puntos: PuntoDiario[];
+  /** Period start, clipped to the first record */
+  desde: Date | null;
+  /** Point size chosen by the stored procedure from the period length: 15, 60, 240 or 1440 */
+  minutos_punto: number;
+  /** Threshold of the variable (ConfiguracionVariables); null: not configured */
+  umbral: { min: number | null; max: number | null; habilitado: boolean } | null;
+  puntos: PuntoTendencia[];
 }
 
 /**
- * Daily average, minimum and maximum of a variable over the last `dias` days
- * of data (null: all), with the motor running only. The query lives in
+ * Average, minimum and maximum of a variable per interval over a period, with the
+ * motor running only. The query lives in
  * dbo.sp_vx_tendencia_variable (database/procedures), which uses the same
  * "running" rule as dbo.sp_vx_resumen_estados. Null when the equipment does
  * not exist.
@@ -250,15 +286,14 @@ export interface MedicionesEquipo {
 export async function findMediciones(
   codigo: string,
   variable: VariableTendencia,
-  dias: number | null,
+  periodo: Periodo,
 ): Promise<MedicionesEquipo | null> {
   if (codigo.length > MAX_CODIGO_LENGTH) return null;
 
   try {
-    const result = await new sql.Request()
+    const result = await conPeriodo(new sql.Request(), periodo)
       .input('equipo_codigo', sql.VarChar(MAX_CODIGO_LENGTH), codigo)
       .input('variable_codigo', sql.VarChar(50), variable)
-      .input('dias', sql.Int, dias)
       .execute('dbo.sp_vx_tendencia_variable');
 
     const recordsets = result.recordsets as sql.IRecordSet<Fila>[];
@@ -267,16 +302,25 @@ export async function findMediciones(
     // DECIMAL aggregates arrive as numbers; round for the chart
     const r3 = (v: unknown) => Math.round(Number(v) * 1000) / 1000;
     const puntos = (recordsets[1] ?? []).map((p) => ({
+      inicio: p.inicio as Date,
       dia: p.dia as string,
       promedio: r3(p.promedio),
       minimo: r3(p.minimo),
       maximo: r3(p.maximo),
       lecturas: Number(p.lecturas),
+      marcas: Number(p.marcas),
     }));
+    const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
     return {
       variable,
       unidad: (head.unidad as string | null) ?? '',
       fecha_referencia: (head.fecha_referencia as Date | null) ?? null,
+      desde: (head.desde as Date | null) ?? null,
+      minutos_punto: Number(head.minutos_punto),
+      umbral:
+        head.umbral_habilitado === null
+          ? null
+          : { min: num(head.umbral_min), max: num(head.umbral_max), habilitado: Boolean(head.umbral_habilitado) },
       puntos,
     };
   } catch (err) {
