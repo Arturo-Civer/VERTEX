@@ -16,25 +16,44 @@ Express y base de datos SQL Server.
     - **Demo** (`VITE_DEMO_MODE=true`, para Netlify): valida contra `VITE_DEMO_EMAIL` / `VITE_DEMO_PASSWORD` sin backend y genera un token local `{ demo: true, exp: +8h }` sin firma real.
   - `App.tsx`: vista `'login' | 'dashboard'`. Si hay un token vigente, entra directo al dashboard.
 - **Dashboard** (`src/modules/dashboard/`): en modo normal, la dona, el estado del motor, la tendencia y la tabla de eventos leen la base; el resto sigue simulado (`mockData.ts`, `donutSimulation.ts`). En modo demo todo es simulado.
-  - **Período compartido** (`periodo.ts`: `{ dias }` o `{ desde, hasta }` AAAA-MM-DD, por defecto 30 días): uno solo para la dona, la tabla de eventos y la tendencia. Lo cambian el selector de fechas y los botones de la tabla.
-  - `PeriodoSelector.tsx`: botón con las fechas que abre dos calendarios nativos (Fecha inicio / Fecha fin) con Aplicar / Cancelar; Escape o clic fuera cierran; límites = primer y último registro del equipo; valida inicio ≤ fin.
-  - Selectores CERO / Período. Al cambiar el CERO se consulta `GET /api/equipos/:codigo` (`equipos.service.ts`):
-    - mientras espera, spinner;
-    - si existe, borde verde y ✓;
-    - si responde 404, 503 o hay error de red, borde rojo y banner con el mensaje del backend.
-    - Si el usuario cambia de nuevo, se cancela la consulta anterior. En modo demo no se consulta.
+  - **Árbol de equipos** (`ArbolEquipos.tsx`) en lugar de las antiguas pestañas (Resumen / Motores / Mantenimiento / Producción) y del selector de CERO: Área → Sección → Grupo → Equipo → Componente.
+    - **⚠ DEMO:** la estructura está en `jerarquiaDemo.ts` (`DEFINICION`); se reemplazará por tablas en la base. Solo los CERO-010…013 tienen datos (`cero`) y solo su Motor tiene sensores (`sensores`).
+    - Se ve solo la ruta (cada nivel con "−") y debajo las hijas del último nivel (con "+"); las hermanas de lo elegido se ocultan. Clic en el nombre de un nivel de la ruta: queda como último; "−": sale de la ruta. Volver siempre borra los niveles inferiores.
+    - Sangría de 1ch por nivel, nombres largos con "…" y `title`; componente elegido resaltado con `--vx-accent`. Botones nativos (Tab / Enter); el foco queda en el árbol tras cada cambio.
+    - Desktop y teléfono horizontal: en el Sidebar (que conserva Cerrar sesión). Teléfono vertical: `ArbolMovil`, una línea con la ruta bajo la cabecera que se despliega al tocarla y se pliega sola al elegir un equipo o componente.
+    - La ruta se guarda en `localStorage` (`vx_ruta`) y se restaura al recargar; si un nivel ya no existe, vuelve a la raíz.
+    - `seleccionDe()` (`DashboardPage.tsx`): sin equipo, "Elige un equipo para ver su información"; componente sin sensores, "Sin mediciones para este componente"; equipo sin datos, "Sin mediciones para este equipo" (en las cuatro tarjetas). Un CERO o su Motor cargan el dashboard de ese CERO con los mismos servicios y endpoints.
+    - Verificación del CERO elegido (`GET /api/equipos/:codigo` con `useBackend`, también al restaurar la ruta): spinner, ✓ verde o "!" rojo con el mensaje bajo el equipo en el árbol. En modo demo no se consulta.
+    - Arriba del dashboard, la ruta como texto informativo (no clicable); en teléfono vertical la muestra la línea del panel.
+  - **Período compartido** (`periodo.ts`: `{ dias }` o `{ desde, hasta }` AAAA-MM-DD, por defecto 30 días): uno solo para la dona, la tabla de eventos y la tendencia. Lo cambian los campos de fecha y los botones de la tabla.
+  - `PeriodoSelector.tsx`: "📅 Desde [fecha] → Hasta [fecha]", dos `<input type="date">` nativos en una caja del ancho de la tarjeta de la dona, siempre en una línea (≤ 340 px de ancho: sin ícono y letra menor).
+    - Clic o Enter abren el calendario del navegador (`showPicker`). Límites = primer y último registro; "Hasta" ≥ "Desde".
+    - Un cambio válido se aplica al momento (sin botón). Rango inválido: caja en rojo y mensaje, sin aplicar. Campo vacío (p. ej. "Borrar"): al salir vuelve la fecha anterior.
+    - Sigue al período de los botones de la tabla (`fechasDelPeriodo`) y conserva las fechas mientras carga. El rango con datos va en el `title` de la caja (sin texto debajo).
+    - Sin margen inferior: la tarjeta de la dona empieza a la misma altura que la de la tendencia (mismo alto en desktop).
+  - Selector de Variable: las opciones nunca se cortan; si no caben, pasan a la línea siguiente.
   - Panel de la dona: info del motor, unidades h/d/sem/mes y leyenda en una sola fila.
     - Centro de la dona: total con la letra de la unidad pegada (`720H`, `30,0D`, `4,3S`, `1,0M`) y debajo el período en líneas sin partir: "Del dd/mm al dd/mm", el año ("2026", o "2025 – 2026" si cruza de año) y, en modo normal, "(última medición)". Letra de la fecha `clamp(6px, 5.8cqi, 12px)`; cabe en los 5 layouts (verificado hasta un teléfono de 320 px).
     - Una sola petición `GET /api/equipos/:codigo/bloques` (`fetchBloques`) alimenta la dona (`horas`), el estado del motor (`estado_actual`) y la tabla de eventos: siempre coinciden. Debajo de la leyenda solo "Cargando…", "Sin mediciones…" o el error.
     - El fin del período se muestra como el último día incluido (`ultimoDia`); "(última medición)" solo si el período llega al último registro.
     - Modo demo: `demoBloquesData` (`bloques.service.ts`) devuelve la misma forma con bloques simulados, para días o rangos de fechas. El período termina en el último registro simulado (14/10).
     - Producto y línea siguen simulados.
-  - **Tendencia** (`TrendChart.tsx`, SVG puro) con selector de variable (corriente, vibración, temperatura, voltaje y producción) y línea nominal (valores fijos en `mockData.ts`: 5,2 A, 2,5 mm/s, 60 °C y 220 V).
-    - Modo normal: `GET /api/equipos/:codigo/mediciones` en el período compartido. Cada punto es el promedio de un intervalo con el motor encendido; el intervalo lo elige el SP según la duración (15 min, 1 h, 4 h o diario) y se indica en el aviso ("Promedio cada 4 h con el motor encendido"). Producción sigue simulada y lo indica.
-    - Eje X de tiempo real con exactamente el período (el mismo de la dona y la tabla); la línea se corta donde no hay datos. Fechas en UTC alineadas a las 00:00 ("dd/mm" o "dd/mm hh:mm"), tantas como quepan por ancho. Títulos de ejes "Variable (unidad)" y "Fecha (UTC)".
-    - Capas: máximo de cada intervalo (azul claro), umbral (rojo oscuro punteado si está habilitado; gris "(desh.)" si no, y solo si cae dentro del rango de datos), puntos con marcas de evento en rojo con tooltip, y bandas de fondo Evento (#FFEBEE) / Mantenimiento (#FFF3E0) con los bloques de la tabla. Leyenda debajo, solo con lo que aparece.
-    - **Se dibuja al tamaño real de su caja** (`ResizeObserver`, 1 unidad SVG = 1 px): ocupa todo el espacio de la tarjeta y la letra queda en 11 px en cualquier pantalla. Teléfono: caja 3:2 (máx. 320 px de alto); desktop: el alto que queda en la tarjeta. Título y aviso van en la misma línea.
-    - Mientras carga un período nuevo solo usa datos del período actual (no mezcla el eje de uno con los datos de otro).
+  - **Tendencia** (`TrendChart.tsx`, SVG puro) con selector de variable (corriente, vibración, temperatura, voltaje y producción). Dibuja el **máximo** de cada intervalo con el motor encendido frente a una línea roja de referencia.
+    - Título "Tendencia — Variable" y, en la misma línea a la derecha, el control **Resumen | Detalle** (por defecto Resumen; "Res." / "Det." si la tarjeta mide ≤ 300 px, por container query).
+    - Eje Y fijo pegado al borde izquierdo de la tarjeta, con el valor de la línea en rojo como una marca más de la escala; la unidad va dentro de la gráfica, arriba a la izquierda. Sin títulos de ejes ni aviso de intervalo; carga / vacío / error salen sobre la gráfica.
+    - Forma (`curva` en `mockData.ts`): temperatura y vibración, curva monótona (Fritsch–Carlson: pasa por cada punto sin salirse de sus vecinos); corriente y voltaje, rectas.
+    - **Episodio** = puntos consecutivos con el máximo ≥ la línea (una parada o un mantenimiento lo cortan). Cada episodio, un solo punto rojo en su pico.
+    - **Resumen**: solo tiempo encendido (cada punto ocupa sus minutos encendidos; apagados y mantenimientos no ocupan espacio), todo el período sin scroll, fechas de inicio de cada día sin solaparse. Con más puntos que ancho se agrupan quedándose con el más alto. Episodios sin valor ni fecha. Usa `GET /mediciones` del período (intervalo del SP: 15 min, 1 h, 4 h o diario).
+    - **Detalle**: línea de tiempo continua con scroll horizontal solo en el área de trazado (abre al final); encendido = máximo del intervalo, apagado = línea tenue al fondo, mantenimiento = sobre el eje X con "Mantenimiento" en vertical, y bandas Evento (#FFEBEE) / MTTO (#FFF3E0). Estados de `GET /bloques` (los mismos de la dona y la tabla).
+      - Hasta 50 marcas con fecha: primero los picos de episodio (con su valor; si hay más de 50, los más altos repartidos), luego los cambios (sube / pico / baja sobre una media móvil de ~2 h, se apaga / vuelve a encender). Si dos fechas chocan, se omite la del pico más bajo (su punto rojo queda).
+      - Intervalos más cortos sin tocar el backend (`fetchMedicionesDetalle` en `operacion.service.ts`): pide el período en tramos de 2 días (15 min) si dura ≤ 16 días, o de 16 días (1 h), 3 peticiones a la vez, y los reagrupa. Ancho: 2 px por intervalo de 15 min o 4 px por hora, más si los episodios lo necesitan (máx. 24 000 px). "Todo" ≈ 6 peticiones.
+    - **Se dibuja al tamaño real de su caja** (`ResizeObserver`, 1 unidad SVG = 1 px), letra de 11 px. Teléfono: caja 3:2 (máx. 320 px de alto); desktop: el alto que queda en la tarjeta. Leyenda en una fila: Máximo · Nominal · Evento · MTTO, solo lo que aparece.
+    - Mientras carga un período nuevo solo usa datos del período actual (no mezcla el eje de uno con los datos de otro). Producción sigue simulada y lo indica.
+  - **⚠ Líneas de referencia DEMO** (`src/modules/dashboard/referenciasTendencia.ts`, único lugar): los datos de `VERTEX_DEMO` son simulados y estas líneas también; solo existen en el frontend (no se tocó `ConfiguracionVariables`).
+    - `USAR_REFERENCIAS_DEMO = true` y `REFERENCIAS_DEMO`: corriente **6,3 A**, vibración **3,4 mm/s**, temperatura **64 °C**, voltaje **225 V**, producción 100.
+    - Elegidas con las 68 072 lecturas encendidas de CERO-010 (13/07 – 14/10): justo por encima del máximo de la operación normal (6,23 A, 3,31 mm/s, 63,86 °C, 224,5 V). Todos los episodios caen en las ventanas de anomalías del seed: corriente 43, temperatura 39, vibración 7; voltaje 0 (el seed no tiene anomalías de voltaje). Las anomalías son solo el 0,02–0,14 % de las lecturas, así que una línea por percentil (p98) marcaba > 1 000 episodios de ruido por variable.
+    - **Al pasar a datos reales**: poner `USAR_REFERENCIAS_DEMO = false` y borrar los valores DEMO. La línea pasa a ser `UMBRAL_MAX` de `ConfiguracionVariables` (el `umbral` que ya devuelve `/mediciones`); sin umbral no hay línea, y los episodios solo se marcan si el umbral está habilitado. Revisar antes los umbrales de la base (hoy corriente 2,5 A y voltaje 396–484 V, deshabilitados).
+    - Pendiente (propuesto, no implementado): para usar `NOMINAL`, `sp_vx_tendencia_variable` debería devolverlo junto a `umbral_min` / `umbral_max` y `findMediciones` (`equipos.service.ts`) incluirlo en la respuesta. `UMBRAL_MIN` llega pero la gráfica todavía no lo dibuja.
     - Modo demo: `demoMedicionesData` (`operacion.service.ts`) simula lecturas por minuto en los bloques ENCENDIDO del período demo, agrupadas como el SP, con los mismos umbrales que la base (temperatura que sube de 40 a 62 °C en el turno). La marca de evento simulada (10 min: vibración en CERO-010 el 21/09 06:11, temperatura en CERO-012 el 09/10 09:30) sale igual en la gráfica y en las `marcas` de los bloques.
   - `operacion.service.ts` (fetch de mediciones y su simulación demo) y `useBackend.ts` (hook genérico con cancelación por clave).
   - **Resumen de eventos** (`EventsSummary.tsx`, `bloques.service.ts`), en el lugar de las antiguas barras por turno:
@@ -46,16 +65,17 @@ Express y base de datos SQL Server.
     - Teléfono (todo lo que no es desktop): Estado con etiqueta corta ("Encend.", "Apagado", "Evento", "Mtto."; la completa en `title`) y celdas con menos relleno; ≤ 340 px, letra 11 px. Cabe sin desplazamiento horizontal en 360 px (304/304), 320 px (264/264) y teléfono horizontal.
     - `HorizontalBars.tsx` y `mockData.bars` quedan sin usar.
   - Placeholder del mapa.
-  - Cerrar sesión en el Sidebar (desktop) y en la cabecera móvil.
+  - Cerrar sesión en el Sidebar (desktop y teléfono horizontal) y en la cabecera móvil (teléfono vertical).
 - **Modos de layout** (los mismos en `dashboard.module.css` y `auth.module.css`):
-  - teléfono por defecto;
-  - teléfono horizontal: `(orientation: landscape) and (max-height: 500px)`;
+  - teléfono por defecto (cabecera + panel del árbol);
+  - teléfono horizontal: `(orientation: landscape) and (max-height: 500px)`; Sidebar de 150 px con el árbol, sin cabecera; con menos de 640 px de contenido las tarjetas van en una columna (container query `vx-main`);
   - desktop: `(min-width: 768px) and (min-height: 501px)`, fijo a 100vh;
   - desktop compacto: alto ≤ 760;
   - desktop grande: ≥ 1440×860.
 - `src/shared/api.ts`: `API_URL` (`VITE_API_URL`) y `DEMO_MODE` (`VITE_DEMO_MODE`), compartidos por los servicios.
 - Variables de color para validación en `dashboard.module.css`: `--vx-ok` (#2E7D32) y `--vx-danger` (#E53935). `--vx-success` es azul, por eso no se usa para "ok".
 - Los archivos vacíos (`LoginPage.tsx`, `ReauthModal.tsx`, `modules/reporting`, `modules/admin`, `shared/`) son estructura pendiente.
+- También sin usar: `DonutChart.tsx` (la dona la dibuja `DonutPanel`), `KpiRow.tsx` y `mockData.kpis`.
 
 ### Backend (`apps/backend`) — Express 5 + TypeScript, `mssql`, `bcrypt`, `jsonwebtoken`
 - `src/main.ts`: conecta a SQL Server (pool global de `mssql`) y escucha en el puerto **3000**.
@@ -168,7 +188,15 @@ Express y base de datos SQL Server.
 
 ### Despliegue
 - GitHub: `https://github.com/Arturo-Civer/VERTEX` (rama `main`), conectado a Netlify.
+- Sitio: `https://vertexdashboar.netlify.app`.
 - Netlify solo sirve el frontend en **modo demo**; el backend corre en la red interna, porque necesita SQL Server.
+  - Allí solo entra el usuario demo (`VITE_DEMO_EMAIL` / `VITE_DEMO_PASSWORD`); los usuarios de `dbo.Usuarios` (admin, etc.) no funcionan.
+  - Si se olvida la contraseña demo, se puede leer en el panel de Netlify o en el JavaScript publicado del sitio. Al cambiar esas variables hay que lanzar un despliegue nuevo (Trigger deploy).
+- Cada push a `main` despliega en Netlify y consume minutos o créditos del plan. Para subir cambios que no afectan al sitio (p. ej. solo `CLAUDE.md`), poner `[skip netlify]` en el mensaje del commit.
+- **Regla de Netlify (saldo limitado):**
+  - Antes de cualquier push, indicar qué cambios afectan al sitio de Netlify (`apps/frontend`) y cuáles no.
+  - Los cambios del día se revisan en local (`localhost:5173`) y se suben en **un solo push al final del día**, solo cuando el usuario diga "aprobado".
+  - Si un commit no afecta al sitio (p. ej. solo `CLAUDE.md`, `database/` o `apps/backend`), usar `[skip netlify]` en el mensaje.
 - Configuración de Netlify (en su panel, fuera del repo):
 
 | Ajuste | Valor |
@@ -189,7 +217,7 @@ apps/
 packages/shared/       Contratos TypeScript compartidos (vacíos por ahora)
 database/              migrations/, procedures/, seeds/, scripts/
 scripts/               create_demo_users.ts
-docs/                  INSTALL_DATABASE.md
+docs/                  INSTALL_DATABASE.md, equipos-mapping.md, flujo-de-datos.md (ruta de los datos por disparador, para el informe técnico)
 instalar.ps1           Instalador de las bases de datos (PowerShell)
 start-vertex.ps1       Arranque de desarrollo: SQL Server + backend + frontend + navegador
 ```
@@ -253,6 +281,7 @@ npm run lint         # oxlint
 - No hay dependencias de gráficos: la dona y la tendencia son SVG puro. Los íconos son SVG inline.
 - Nunca guardar contraseñas, tokens ni hashes en archivos versionados.
 - Commits y push solo cuando el usuario lo apruebe explícitamente ("aprobado").
+- Al probar en el navegador con Chrome headless, cerrar todos sus procesos (perfil temporal) al terminar: si quedan abiertos agotan la memoria y SQL Server deja de responder.
 
 ## Reglas de trabajo con Claude
 

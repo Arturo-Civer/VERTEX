@@ -49,7 +49,7 @@ export interface TrendPoint {
   value: number;
 }
 
-/** A measured variable for the trend chart, with its nominal reference value */
+/** A variable for the trend chart (its red line: dashboard/referenciasTendencia.ts) */
 export interface TrendVariable {
   id: TrendVariableId;
   /** dbo.Variables.codigo read from the backend; omitted: simulated only */
@@ -57,15 +57,12 @@ export interface TrendVariable {
   label: string;
   /** Unit shown next to the label, e.g. "A"; omitted for unitless variables */
   unit?: string;
-  nominal: number;
+  /** Line shape: suave (monotone curve) or recta (straight segments, the default) */
+  curva?: 'suave' | 'recta';
   data: TrendPoint[];
 }
 
 export interface DashboardMockData {
-  motor: {
-    id: string;
-    name: string;
-  };
   motorInfo: MotorInfo;
   period: string;
   donut: {
@@ -76,12 +73,4 @@ export interface DashboardMockData {
   kpis: KpiItem[];
   bars: BarItem[];
   trendVariables: TrendVariable[];
-}
-
-export type NavTabId = 'resumen' | 'motores' | 'mantenimiento' | 'produccion';
-
-export interface NavTab {
-  id: NavTabId;
-  label: string;
-  icon?: string;
 }

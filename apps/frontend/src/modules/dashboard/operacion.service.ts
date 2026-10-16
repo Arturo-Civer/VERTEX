@@ -71,6 +71,104 @@ export function fetchMediciones(codigo: string, variable: string, periodo: Perio
   );
 }
 
+const MIN_MS = 60_000;
+const HORA_MS = 60 * MIN_MS;
+const DAY_MS = 24 * HORA_MS;
+
+// ── Detail mode: shorter intervals ──────────────────────────
+// The backend picks the interval from the period length (≤ 2 days → 15 min,
+// ≤ 16 days → 60 min), so the detail asks for the period in date ranges of
+// that size and merges them. Same stored procedure, no backend change.
+
+/** Interval of the detail: 15 min up to 16 days, 60 min beyond */
+export function minutosDetalle(duracionMs: number) {
+  return duracionMs <= 16 * DAY_MS ? 15 : 60;
+}
+
+/** Requests running at the same time, so "Todo" does not flood SQL Server */
+const PETICIONES_PARALELAS = 3;
+
+const diaIso = (t: number) => new Date(t).toISOString().slice(0, 10);
+
+/**
+ * Points regrouped into intervals of `minutos` aligned to 00:00 UTC (they
+ * only merge: every interval of the stored procedure divides them), keeping
+ * the maximum, minimum and the weighted average. Only intervals that overlap
+ * [desde, hasta).
+ */
+function reagrupar(puntos: PuntoTendencia[], minutos: number, desde: number, hasta: number): PuntoTendencia[] {
+  const paso = minutos * MIN_MS;
+  const grupos = new Map<number, PuntoTendencia & { suma: number }>();
+  for (const p of puntos) {
+    const t = Date.parse(p.inicio);
+    if (t + paso <= desde || t >= hasta) continue;
+    const inicio = t - (t % paso);
+    const g = grupos.get(inicio);
+    if (g) {
+      g.suma += p.promedio * p.lecturas;
+      g.minimo = Math.min(g.minimo, p.minimo);
+      g.maximo = Math.max(g.maximo, p.maximo);
+      g.lecturas += p.lecturas;
+      g.marcas += p.marcas;
+    } else {
+      const iso = new Date(inicio).toISOString();
+      grupos.set(inicio, { ...p, inicio: iso, dia: iso.slice(0, 10), suma: p.promedio * p.lecturas });
+    }
+  }
+  return [...grupos.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([, { suma, ...g }]) => ({ ...g, promedio: g.lecturas ? Math.round((suma / g.lecturas) * 1000) / 1000 : g.promedio }));
+}
+
+/**
+ * Detail of the trend for the resolved period [desdeIso, hastaIso): the
+ * period in date ranges of 2 days (15 min) or 16 days (60 min), at most
+ * PETICIONES_PARALELAS at a time, merged into one series. Rejects like
+ * fetchMediciones.
+ */
+export async function fetchMedicionesDetalle(
+  codigo: string,
+  variable: string,
+  desdeIso: string,
+  hastaIso: string,
+  signal?: AbortSignal,
+): Promise<MedicionesData> {
+  const desde = Date.parse(desdeIso);
+  const hasta = Date.parse(hastaIso);
+  const diasTramo = minutosDetalle(hasta - desde) === 15 ? 2 : 16;
+  const primerDia = desde - (desde % DAY_MS);
+  const ultimoDia = hasta - 1 - ((hasta - 1) % DAY_MS);
+  const tramos: Periodo[] = [];
+  for (let d = primerDia; d <= ultimoDia; d += diasTramo * DAY_MS) {
+    tramos.push({ desde: diaIso(d), hasta: diaIso(Math.min(d + (diasTramo - 1) * DAY_MS, ultimoDia)) });
+  }
+
+  const resultados: MedicionesData[] = [];
+  let siguiente = 0;
+  const trabajador = async () => {
+    while (siguiente < tramos.length) {
+      const i = siguiente++;
+      resultados[i] = await fetchMediciones(codigo, variable, tramos[i], signal);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(PETICIONES_PARALELAS, tramos.length) }, trabajador));
+
+  // A short last range may come back with smaller intervals: merge to the largest
+  const minutos = Math.max(...resultados.map((r) => r.minutos_punto));
+  return {
+    ...resultados[0],
+    desde: desdeIso,
+    fecha_referencia: hastaIso,
+    minutos_punto: minutos,
+    puntos: reagrupar(
+      resultados.flatMap((r) => r.puntos),
+      minutos,
+      desde,
+      hasta,
+    ),
+  };
+}
+
 // ── Demo mode (Netlify, no backend) ─────────────────────────
 // Simulated readings, one per minute with the motor running (ENCENDIDO
 // blocks of the demo period), grouped like dbo.sp_vx_tendencia_variable.
@@ -94,10 +192,6 @@ const DEMO_VARIABLES: Record<string, DemoVariable> = {
   VOLTAJE_MOTOR: { base: 220, ruido: 1.6, pico: 224, umbral: { min: 396, max: 484, habilitado: false } },
 };
 
-const MIN_MS = 60_000;
-const HORA_MS = 60 * MIN_MS;
-const DAY_MS = 24 * HORA_MS;
-
 /** Repeatable noise in [-1, 1) for a minute and a variable */
 function ruido(minuto: number, semilla: number) {
   const x = Math.sin(minuto * 12.9898 + semilla * 78.233) * 43758.5453;
@@ -117,12 +211,18 @@ function minutosPunto(duracionMs: number) {
  * period (`datos`): points only while the motor runs, marks only inside the
  * simulated event mark of the CERO. null: the variable is not simulated.
  */
-export function demoMedicionesData(codigo: string, variable: TrendVariable, datos: BloquesData): MedicionesData | null {
+export function demoMedicionesData(
+  codigo: string,
+  variable: TrendVariable,
+  datos: BloquesData,
+  /** Interval of each point; omitted: the one the stored procedure would pick */
+  minutos?: number,
+): MedicionesData | null {
   const sim = variable.codigo ? DEMO_VARIABLES[variable.codigo] : undefined;
   if (!sim || !variable.codigo) return null;
   const desde = datos.desde ? Date.parse(datos.desde) : 0;
   const hasta = datos.fecha_referencia ? Date.parse(datos.fecha_referencia) : 0;
-  const punto = minutosPunto(hasta - desde);
+  const punto = minutos ?? minutosPunto(hasta - desde);
   const marca = demoMarca(codigo);
   const conMarca = marca?.variable === variable.codigo ? marca : null;
   const semilla = variable.codigo.length;

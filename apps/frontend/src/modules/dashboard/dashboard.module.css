@@ -2,7 +2,7 @@
  *
  * Layout modes:
  *   Mobile portrait   (default)                               → single column, page scrolls
- *   Phone landscape   (orientation: landscape, height ≤ 500)  → 2 columns, page scrolls
+ *   Phone landscape   (orientation: landscape, height ≤ 500)  → tree panel + 2 columns, page scrolls
  *   Desktop           (width ≥ 768 and height ≥ 501)          → sidebar + grid locked to 100vh, no scroll
  *   Desktop compact   (desktop and height ≤ 760)              → tighter spacing so cards still fit
  *   Desktop large     (width ≥ 1440 and height ≥ 860)         → roomier spacing, bigger donut
@@ -53,7 +53,7 @@
   }
 }
 
-/* ── Sidebar (desktop only) ───────────────────────────────── */
+/* ── Sidebar: logo, equipment tree, logout (desktop and phone landscape) ── */
 .sidebar {
   display: none;
   width: var(--vx-sidebar-width);
@@ -100,13 +100,6 @@
   letter-spacing: 0.5px;
 }
 
-.sidebarNav {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 0 12px;
-}
-
 .sidebarItem {
   display: flex;
   align-items: center;
@@ -128,15 +121,9 @@
   color: var(--vx-white);
 }
 
-/* Pinned to the bottom of the sidebar, apart from the navigation */
+/* Pinned to the bottom of the sidebar, under the tree */
 .sidebarLogout {
   margin: auto 12px 0;
-}
-
-.sidebarItemActive {
-  background: rgba(255, 255, 255, 0.18);
-  color: var(--vx-white);
-  font-weight: 600;
 }
 
 .sidebarIcon {
@@ -145,7 +132,7 @@
   text-align: center;
 }
 
-/* ── Mobile header (portrait + landscape phones) ──────────── */
+/* ── Mobile header (phone portrait) ───────────────────────── */
 .mobileHeader {
   display: flex;
   align-items: center;
@@ -207,67 +194,333 @@
   flex-shrink: 0;
 }
 
-/* ── Nav tabs (mobile horizontal scroll) ──────────────────── */
-.navTabs {
-  display: flex;
-  align-items: stretch;
-  align-self: stretch;
-  gap: 2px;
-  min-width: 0;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  -webkit-overflow-scrolling: touch;
-  scroll-snap-type: x proximity;
-  scroll-padding-inline: 12px;
-  padding-right: 12px;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+.mobileTitle {
   flex: 1;
+  min-width: 0;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--vx-primary);
 }
 
-.navTabs::-webkit-scrollbar {
-  display: none;
+/* ── Equipment tree (ArbolEquipos.tsx) ─────────────────────── */
+/* Works on the dark sidebar and on the white phone panel: the text and the
+   +/− borders take the container's color. One character of indentation per
+   level, so five levels fit without horizontal scroll. */
+.sidebarArbol {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0 8px 12px;
+  color: var(--vx-white);
 }
 
-.navTab {
-  flex-shrink: 0;
-  min-height: var(--vx-touch-target);
-  min-width: var(--vx-touch-target);
-  padding: 0 14px;
-  border: none;
-  background: transparent;
-  color: var(--vx-text-muted);
+.arbol {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+.arbolItem {
+  min-width: 0;
+}
+
+.arbolFila {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding-left: calc(var(--nivel, 0) * 1ch);
+}
+
+.arbolBoton,
+.arbolPunto {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 4px;
+  color: inherit;
   font: inherit;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.arbolBoton {
+  border: 1px solid currentColor;
+  background: transparent;
+  opacity: 0.8;
   cursor: pointer;
-  border-bottom: 3px solid transparent;
-  white-space: nowrap;
-  scroll-snap-align: start;
   touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.arbolNombre {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 28px;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.85;
+  cursor: pointer;
+  touch-action: manipulation;
 }
 
 @media (hover: hover) {
-  .navTab:hover {
-    color: var(--vx-primary);
+  .arbolBoton:hover {
+    opacity: 1;
+  }
+
+  .arbolNombre:hover {
+    background: rgba(127, 127, 127, 0.18);
   }
 }
 
-.navTab:active {
-  background: var(--vx-neutral);
+/* Levels of the route: bold, full color */
+.arbolRuta .arbolNombre {
+  opacity: 1;
+  font-weight: 600;
 }
 
-.navTab:focus-visible {
+/* Chosen component: the selection color of the project */
+.arbolElegido .arbolNombre,
+.arbolElegido .arbolNombre:hover {
+  background: var(--vx-accent);
+  color: var(--vx-primary);
+  font-weight: 700;
+}
+
+.arbolBoton:focus-visible,
+.arbolNombre:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 1px;
+}
+
+/* CERO check next to the chosen equipment: spinner, ✓ or ! */
+.arbolCheck {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--vx-white);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.arbolCheckOk {
+  background: var(--vx-ok);
+}
+
+.arbolCheckError {
+  background: var(--vx-danger);
+}
+
+.arbolSpinner {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--vx-accent);
+  border-top-color: var(--vx-secondary);
+  border-radius: 50%;
+  animation: vx-filter-spin 0.7s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arbolSpinner {
+    animation-duration: 2s;
+  }
+}
+
+.arbolError {
+  margin: 2px 0 4px calc(var(--nivel, 0) * 1ch);
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--vx-danger);
+  color: var(--vx-white);
+  font-size: 12px;
+}
+
+/* Phone portrait: the route in one line under the header; the tree opens
+   under it. Desktop and phone landscape have the tree in the sidebar. */
+.arbolMovil {
+  flex-shrink: 0;
+  background: var(--vx-white);
+  border-bottom: 1px solid var(--vx-border);
+  color: var(--vx-primary);
+}
+
+.arbolMovilBoton {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: var(--vx-touch-target);
+  padding: 0 16px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.arbolMovilBoton:focus-visible {
   outline: 2px solid var(--vx-secondary);
   outline-offset: -2px;
 }
 
-.navTabActive {
-  color: var(--vx-primary);
-  font-weight: 700;
-  border-bottom-color: var(--vx-primary);
+/* Cut at the start ("…Molino 1 › Motor"): the end of the route matters most */
+.arbolMovilRuta {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  direction: rtl;
+  text-align: left;
+}
+
+.arbolMovilFlecha {
+  flex-shrink: 0;
+  transition: transform 0.15s;
+}
+
+.arbolMovilBoton[aria-expanded='true'] .arbolMovilFlecha {
+  transform: rotate(180deg);
+}
+
+.arbolMovilPanel {
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 4px 12px 10px;
+  border-top: 1px solid var(--vx-border);
+}
+
+/* Bigger touch rows in the phone panel */
+.arbolMovilPanel .arbolNombre {
+  min-height: 36px;
+}
+
+.arbolMovilPanel .arbolBoton,
+.arbolMovilPanel .arbolPunto {
+  width: 24px;
+  height: 24px;
+}
+
+@media (min-width: 768px) and (min-height: 501px), (orientation: landscape) and (max-height: 500px) {
+  .arbolMovil {
+    display: none;
+  }
+}
+
+/* Phone landscape: the sidebar (tree) on the left, sticky while the page
+   scrolls; no top header (the sidebar has the logo and the logout) */
+@media (orientation: landscape) and (max-height: 500px) {
+  .dashboard {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
+  .mobileHeader {
+    display: none;
+  }
+
+  /* Named container only here: narrow content falls back to one column */
+  .main {
+    container: vx-main / inline-size;
+  }
+
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: 0;
+    width: 150px;
+    height: 100vh;
+    height: 100dvh;
+    padding: 10px 0;
+  }
+
+  .sidebarLogo {
+    gap: 8px;
+    padding: 0 12px 8px;
+    margin-bottom: 8px;
+  }
+
+  .logoMark {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+  }
+
+  .logoText {
+    font-size: 15px;
+  }
+
+  .sidebarLogout {
+    margin: auto 8px 0;
+    padding: 8px 10px;
+    gap: 8px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+}
+
+/* ── Route of the chosen equipment, top of the dashboard (text only) ── */
+/* Phone portrait shows it in the tree panel line instead */
+.rutaTexto {
+  display: none;
+  margin: 0 0 4px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--vx-text-muted);
+}
+
+@media (min-width: 768px) and (min-height: 501px), (orientation: landscape) and (max-height: 500px) {
+  .rutaTexto {
+    display: block;
+    flex-shrink: 0;
+  }
+}
+
+/* ── Card message instead of the content (no equipment / no data) ── */
+.avisoCard {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+  margin: 0;
+  padding: 12px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--vx-text-muted);
 }
 
 /* ── Main content area ────────────────────────────────────── */
@@ -335,6 +588,15 @@
 
   .col12 {
     grid-column: 1 / -1;
+  }
+}
+
+/* Phone landscape with the tree panel: under 640px of content (568–740px
+   wide phones) two columns are too narrow for the table and the donut
+   legend, so the cards stack in one column */
+@container vx-main (max-width: 640px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -471,20 +733,12 @@
   margin-top: 4px;
 }
 
-/* ── Donut filters (CERO + período selectors) ─────────────── */
-/* Mobile: stacked, full width */
+/* ── Donut filters (período selector) ─────────────────────── */
+/* Full width of the donut column: the period box inside sizes itself, and
+   this container decides when its two fields stack */
 .filters {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  container-type: inline-size;
   padding: 0;
-}
-
-.filterField {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
 }
 
 .filterLabel {
@@ -493,99 +747,11 @@
   color: var(--vx-text-muted);
 }
 
-.filterSelect {
-  appearance: none;
-  -webkit-appearance: none;
-  width: 100%;
-  min-height: var(--vx-touch-target);
-  padding: 0 36px 0 12px;
-  /* Layers: chevron (in --vx-primary, matching the text) on top of a soft
-     horizontal gradient: white edges with a faint blue glow in the middle */
-  background-color: var(--vx-white);
-  background-image:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%231F3864' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"),
-    linear-gradient(to right, #FFFFFF 0%, #EEF5FB 50%, #FFFFFF 100%);
-  background-repeat: no-repeat, no-repeat;
-  background-position: right 12px center, 0 0;
-  background-size: auto, 100% 100%;
-  border: 1px solid #C8DCF0;
-  border-radius: 6px;
-  color: var(--vx-primary);
-  font: inherit;
-  font-size: 14px;
-  cursor: pointer;
-  touch-action: manipulation;
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
-
-.filterSelect:focus {
-  outline: none;
-  border-color: var(--vx-secondary);
-  box-shadow: 0 0 0 3px rgba(46, 117, 182, 0.15);
-}
-
-/* CERO check against the backend: spinner / ✓ inside the box (left of the
-   chevron), green or red border, error banner under the selectors */
-.filterSelectWrap {
-  position: relative;
-}
-
-.filterSelectBusy {
-  padding-right: 60px;
-}
-
-.filterSelectOk,
-.filterSelectOk:focus {
-  border-color: var(--vx-ok);
-}
-
-.filterSelectOk:focus {
-  box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.15);
-}
-
-.filterSelectError,
-.filterSelectError:focus {
-  border-color: var(--vx-danger);
-}
-
-.filterSelectError:focus {
-  box-shadow: 0 0 0 3px rgba(229, 57, 53, 0.15);
-}
-
-.filterSpinner,
-.filterOkIcon {
-  position: absolute;
-  top: 50%;
-  right: 34px;
-  pointer-events: none;
-}
-
-.filterSpinner {
-  width: 14px;
-  height: 14px;
-  margin-top: -7px;
-  border: 2px solid var(--vx-accent);
-  border-top-color: var(--vx-secondary);
-  border-radius: 50%;
-  animation: vx-filter-spin 0.7s linear infinite;
-}
-
+/* Spinner of the CERO check in the tree */
 @keyframes vx-filter-spin {
   to {
     transform: rotate(360deg);
   }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .filterSpinner {
-    animation-duration: 2s;
-  }
-}
-
-.filterOkIcon {
-  display: flex;
-  margin-top: -8px;
-  color: var(--vx-ok);
 }
 
 .filterError {
@@ -605,149 +771,143 @@
   flex-shrink: 0;
 }
 
-/* ── Period selector: button + panel with two calendars ──── */
+/* ── Period selector: "Desde → Hasta" in one box, always visible ── */
+/* Label, box and (only for an invalid range) its message. No margin under
+   it: the donut card starts at the same height as the trend card */
 .periodoSelector {
-  position: relative;
-}
-
-/* Same look as the selects (.filterSelect), with the dates as its text */
-.periodoBoton {
-  display: block;
-  text-align: left;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Phones: full width of the field; desktop: aligned to its right edge */
-.periodoPanel {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
-  z-index: 20;
-  padding: 12px;
-  background: var(--vx-white);
-  border: 1px solid var(--vx-border);
-  border-radius: var(--vx-radius);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
-}
-
-.periodoFechas {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-
-.periodoCampo {
   display: flex;
   flex-direction: column;
   gap: 4px;
   min-width: 0;
 }
 
-.periodoInput {
-  width: 100%;
+/* As wide as the donut card, the two fields sharing it */
+.periodoCaja {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   min-height: var(--vx-touch-target);
-  padding: 0 8px;
-  border: 1px solid #C8DCF0;
+  padding: 0 12px;
+  border: 1px solid var(--vx-accent);
   border-radius: 6px;
   background: var(--vx-white);
   color: var(--vx-primary);
-  font: inherit;
-  font-size: 14px;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-.periodoInput:focus {
-  outline: none;
+.periodoCaja:focus-within {
   border-color: var(--vx-secondary);
   box-shadow: 0 0 0 3px rgba(46, 117, 182, 0.15);
 }
 
-.periodoAyuda,
-.periodoError {
-  margin: 8px 0 0;
-  font-size: 12px;
+.periodoCajaError,
+.periodoCajaError:focus-within {
+  border-color: var(--vx-danger);
 }
 
-.periodoAyuda {
+.periodoCajaError:focus-within {
+  box-shadow: 0 0 0 3px rgba(229, 57, 53, 0.15);
+}
+
+.periodoIcono {
+  flex-shrink: 0;
+  color: var(--vx-secondary);
+}
+
+.periodoCampo {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.periodoEtiqueta {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
   color: var(--vx-text-muted);
 }
 
+.periodoFlecha {
+  flex-shrink: 0;
+  color: var(--vx-text-muted);
+}
+
+/* The native date field without its own box: the click opens the calendar
+   (showPicker), so the browser's calendar icon is not needed */
+.periodoInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  min-height: 32px;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--vx-primary);
+  font: inherit;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.periodoInput::-webkit-calendar-picker-indicator {
+  display: none;
+}
+
+.periodoInput:focus {
+  outline: none;
+}
+
+.periodoInput:focus-visible {
+  background: var(--vx-neutral);
+}
+
+.periodoInput[aria-invalid='true'] {
+  color: var(--vx-danger);
+}
+
+.periodoInput:disabled {
+  cursor: default;
+}
+
 .periodoError {
+  margin: 0;
+  font-size: 11px;
+  line-height: 14px;
   color: var(--vx-danger);
   font-weight: 600;
 }
 
-.periodoAcciones {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.periodoCancelar,
-.periodoAplicar {
-  min-height: var(--vx-touch-target);
-  padding: 0 16px;
-  border-radius: 6px;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  touch-action: manipulation;
-}
-
-.periodoCancelar {
-  border: 1px solid var(--vx-border);
-  background: var(--vx-white);
-  color: var(--vx-text);
-}
-
-.periodoAplicar {
-  border: 1px solid var(--vx-primary);
-  background: var(--vx-primary);
-  color: var(--vx-white);
-}
-
-.periodoAplicar:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-/* Very narrow phones: one calendar per row */
-@media (max-width: 359px) {
-  .periodoFechas {
-    grid-template-columns: 1fr;
+@media (min-width: 768px) and (min-height: 501px) {
+  .periodoCaja {
+    min-height: 38px;
   }
 }
 
-/* Desktop: side by side, each selector 50% of the donut column */
-@media (min-width: 768px) and (min-height: 501px) {
-  .filters {
-    flex-direction: row;
-    align-items: flex-end;
+/* Narrow (phones of 320–360px, 768–1099px desktops): still one line, made
+   compact: no calendar icon, smaller text */
+@container (max-width: 340px) {
+  .periodoCaja {
+    gap: 6px;
+    padding: 0 8px;
+  }
+
+  .periodoIcono {
+    display: none;
+  }
+
+  .periodoCampo {
     gap: 4px;
   }
 
-  .filterField {
-    flex: 1 1 0;
+  .periodoEtiqueta {
+    font-size: 11px;
   }
 
-  .filterSelect {
-    min-height: 38px;
-  }
-
-  /* Wider than the field (half the donut column), so both calendars fit */
-  .periodoPanel {
-    left: auto;
-    width: 340px;
-  }
-
-  .periodoInput,
-  .periodoCancelar,
-  .periodoAplicar {
-    min-height: 38px;
+  .periodoInput {
+    font-size: 13px;
   }
 }
 
@@ -794,11 +954,6 @@
   transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
 }
 
-.variableOption > span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 
 .variableOption input {
   flex-shrink: 0;
@@ -817,14 +972,11 @@
   box-shadow: 0 0 0 3px rgba(46, 117, 182, 0.15);
 }
 
-/* Desktop: one row across the full column, each option the same width */
+/* Desktop: one row across the column while the names fit; never cut: an
+   option that does not fit goes to the next line */
 @media (min-width: 768px) and (min-height: 501px) {
-  .variableOptions {
-    flex-wrap: nowrap;
-  }
-
   .variableOption {
-    flex: 1 1 0;
+    flex: 1 0 auto;
     min-height: 38px;
     padding: 0 6px;
     gap: 5px;
@@ -853,12 +1005,8 @@
   }
 }
 
-/* Phone landscape: CERO + período selectors over the donut (left), variable
-   radios over the trend (right), as on desktop. The radios use two
-   rows lined up with the two selectors: with 16px labels and 44px controls,
-   the CERO select starts 20px down and the período select 88px down, so the
-   radio rows sit at the same offsets with a 24px row gap
-   (4px gap + 16px label + 4px gap). */
+/* Phone landscape: período selector over the donut (left), variable radios
+   over the trend (right), as on desktop; the radios wrap when they do not fit. */
 @media (orientation: landscape) and (max-width: 932px) and (max-height: 500px) {
   /* Both columns as tall as the taller one; each card fills what its
      controls leave, and the trend chart grows into the extra height */
@@ -880,20 +1028,9 @@
     line-height: 16px;
   }
 
-  .variableOptions {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 24px 4px;
-  }
-
   .variableOption {
-    padding: 0 4px;
-    font-size: clamp(10px, 3.1cqi, 13px);
-  }
-
-  /* Producción, alone on the second row, spans the four columns */
-  .variableOption:last-child {
-    grid-column: 1 / -1;
+    flex: 1 0 auto;
+    padding: 0 8px;
   }
 }
 
@@ -1507,35 +1644,173 @@
 }
 
 /* ── Trend line chart ─────────────────────────────────────── */
-/* Title and notice on one line, wrapping when there is no room */
+/* Title and the Resumen | Detalle control on one line, never two: the title
+   gives way (ellipsis) and the control shortens to "Res." / "Det." when the
+   card is narrow */
 .trendHeader {
+  container-type: inline-size;
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 12px;
-  margin-bottom: 8px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
   flex-shrink: 0;
 }
 
-.trendHeader .cardTitle,
-.trendHeader .chartNotice {
+.trendHeader .cardTitle {
+  flex: 1 1 auto;
+  min-width: 0;
   margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* The SVG is drawn at the box's real size (TrendChart measures it), so the
-   box sets the size and the SVG never stretches it.
-   Mobile: 3:2 box, taller than the old 2:1 */
+.trendModos {
+  display: flex;
+  flex-shrink: 0;
+}
+
+.trendModo {
+  min-height: 26px;
+  padding: 0 10px;
+  border: 1px solid #C8DCF0;
+  background: var(--vx-white);
+  color: var(--vx-primary);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.trendModo:first-child {
+  border-radius: 6px 0 0 6px;
+}
+
+.trendModo:last-child {
+  border-left: 0;
+  border-radius: 0 6px 6px 0;
+}
+
+.trendModo[aria-pressed='true'] {
+  border-color: var(--vx-secondary);
+  background: #EEF5FB;
+  font-weight: 700;
+}
+
+.trendModo:last-child[aria-pressed='true'] {
+  box-shadow: -1px 0 0 var(--vx-secondary);
+}
+
+.trendModo:focus-visible {
+  outline: 2px solid var(--vx-secondary);
+  outline-offset: 1px;
+}
+
+.trendModoCorto {
+  display: none;
+}
+
+@container (max-width: 300px) {
+  .trendModo {
+    padding: 0 7px;
+  }
+
+  .trendModoLargo {
+    display: none;
+  }
+
+  .trendModoCorto {
+    display: inline;
+  }
+}
+
+/* The SVGs are drawn at the box's real size (TrendChart measures it), so the
+   box sets the size and the SVGs never stretch it. The box reaches into the
+   card's side padding: the Y axis sits almost at the card's left edge.
+   Mobile: 3:2 box */
 .trendChart {
   position: relative;
-  width: 100%;
+  margin: 0 calc(4px - var(--vx-card-padding));
   aspect-ratio: 3 / 2;
   max-height: 320px;
 }
 
-.trendChart svg {
+/* Fixed Y axis at the left; the plot fills the rest */
+.trendEjeY {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
   display: block;
+}
+
+/* Plot viewport: hidden overflow in Resumen; in Detalle the plot and the X
+   axis scroll horizontally (the only horizontal scroll of the page) */
+.trendScroll {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+}
+
+.trendScroll svg {
+  display: block;
+}
+
+.trendScrollDetalle {
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+
+.trendScrollDetalle:focus-visible {
+  outline: 2px solid var(--vx-secondary);
+  outline-offset: -2px;
+}
+
+/* Unit of the variable, inside the plot at the top left */
+.trendUnidad {
+  position: absolute;
+  top: 0;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.85);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  color: var(--vx-text-muted);
+  pointer-events: none;
+}
+
+/* Loading / empty / error message over the plot */
+.trendNotice {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0 12px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--vx-text-muted);
+  pointer-events: none;
+}
+
+/* With data on the plot (simulated producción), the message moves to the
+   top right corner */
+.trendNoticeEsquina {
+  bottom: auto;
+  justify-content: flex-end;
+  padding: 0 6px;
+  max-width: 70%;
+  font-size: 11px;
+  line-height: 16px;
+  background: rgba(255, 255, 255, 0.85);
 }
 
 /* Desktop: chart takes all the card's remaining height */
@@ -1548,12 +1823,14 @@
   }
 }
 
-/* Trend legend: one row that wraps, under the chart */
+/* Trend legend: one row under the chart */
 .trendLegend {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow: hidden;
+  white-space: nowrap;
   gap: 2px 12px;
-  margin: 6px 0 0;
+  margin: 2px 0 0;
   padding: 0;
   list-style: none;
   font-size: 11px;
@@ -1574,12 +1851,6 @@
 .trendLegendDash {
   width: 14px;
   border-top: 2px dashed;
-}
-
-.trendLegendDot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
 }
 
 .trendLegendBox {
@@ -1631,21 +1902,6 @@
     min-height: 0;
     height: auto;
   }
-}
-
-/* ── Motor badge ──────────────────────────────────────────── */
-.motorBadge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  max-width: 100%;
-  background: var(--vx-accent);
-  color: var(--vx-primary);
-  font-size: 12px;
-  font-weight: 600;
-  padding: 4px 10px;
-  border-radius: 20px;
-  margin-bottom: 8px;
 }
 
 /* Mobile-only helper */
@@ -1709,11 +1965,6 @@
 
   .pageTitle h1 {
     font-size: 18px;
-  }
-
-  .motorBadge {
-    margin-bottom: 4px;
-    padding: 2px 10px;
   }
 
   .grid {

@@ -1,17 +1,19 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { DEMO_MODE } from '../../shared/api';
-import type { NavTabId, TrendVariable, TrendVariableId } from '../../contracts/dashboard';
-import { mockData, NAV_TABS } from './mockData';
+import type { TrendVariable, TrendVariableId } from '../../contracts/dashboard';
+import { mockData } from './mockData';
+import { ArbolMovil } from './ArbolEquipos';
+import type { CeroCheck } from './ArbolEquipos';
 import { DonutFilters } from './DonutFilters';
-import type { CeroCheck } from './DonutFilters';
 import { DonutPanel } from './DonutPanel';
 import type { DonutPeriodo } from './DonutPanel';
 import type { PeriodoFechas } from './PeriodoSelector';
 import { fetchEquipo } from './equipos.service';
 import type { CeroId, DonutData } from './donutSimulation';
+import { resolverRuta, textoRuta } from './jerarquiaDemo';
 import { demoBloquesData, fetchBloques } from './bloques.service';
 import type { BloquesData } from './bloques.service';
-import { demoMedicionesData, fetchMediciones } from './operacion.service';
+import { demoMedicionesData, fetchMediciones, fetchMedicionesDetalle, minutosDetalle } from './operacion.service';
 import type { MedicionesData } from './operacion.service';
 import { esRango, PERIODO_INICIAL, periodoClave } from './periodo';
 import type { Periodo } from './periodo';
@@ -19,11 +21,11 @@ import { useBackend } from './useBackend';
 import type { BackendState } from './useBackend';
 import { EventsSummary } from './EventsSummary';
 import { LogoutIcon } from './LogoutIcon';
-import { NavTabs } from './NavTabs';
 import { Sidebar } from './Sidebar';
 import { TrendChart } from './TrendChart';
-import type { TrendBanda, TrendSeriesPoint } from './TrendChart';
+import type { TrendEstado, TrendModo, TrendSeriesPoint } from './TrendChart';
 import { TrendVariablePicker } from './TrendVariablePicker';
+import { lineaReferencia } from './referenciasTendencia';
 import styles from './dashboard.module.css';
 
 type Notice = { text: string; error?: boolean };
@@ -52,14 +54,21 @@ function bloquesDemo(cero: string, periodo: Periodo): BackendState<BloquesData> 
   }
 }
 
-/** Demo mode: simulated trend of the demo blocks (same errors, e.g. unknown CERO) */
+/**
+ * Demo mode: simulated trend of the demo blocks (same errors, e.g. unknown
+ * CERO). `detalle`: the shorter intervals of the Detalle view.
+ */
 function medicionesDemo(
   cero: string,
   variable: TrendVariable,
   bloques: BackendState<BloquesData>,
+  detalle = false,
 ): BackendState<MedicionesData> | null {
   if (bloques.status !== 'data') return bloques.status === 'error' ? bloques : null;
-  const data = demoMedicionesData(cero, variable, bloques.data);
+  const { desde, fecha_referencia } = bloques.data;
+  const minutos =
+    detalle && desde && fecha_referencia ? minutosDetalle(Date.parse(fecha_referencia) - Date.parse(desde)) : undefined;
+  const data = demoMedicionesData(cero, variable, bloques.data, minutos);
   return data ? { status: 'data', data } : null;
 }
 
@@ -105,10 +114,47 @@ function fechasDelPeriodo(periodo: Periodo, ultimos: BloquesData | null): Period
   return { desde: ultimos.desde.slice(0, 10), hasta: ultimoDia(ultimos.fecha_referencia).slice(0, 10), min, max };
 }
 
-/** "cada 15 min" / "cada 1 h" / "cada 4 h" / "diario" for the trend notice */
-function etiquetaPunto(minutos: number) {
-  if (minutos >= 1440) return 'diario';
-  return minutos >= 60 ? `cada ${minutos / 60} h` : `cada ${minutos} min`;
+/** localStorage key of the chosen tree route (ids from the root down) */
+const RUTA_KEY = 'vx_ruta';
+
+/**
+ * Saved route, if every level still exists in the tree data; otherwise the
+ * root (empty route). localStorage may be unavailable: then also the root.
+ */
+function rutaGuardada(): string[] {
+  try {
+    const ruta: unknown = JSON.parse(localStorage.getItem(RUTA_KEY) ?? '[]');
+    if (Array.isArray(ruta) && ruta.every((id) => typeof id === 'string') && resolverRuta(ruta)) return ruta;
+  } catch {
+    // unreadable or blocked storage: start at the root
+  }
+  return [];
+}
+
+/**
+ * What the chosen route shows: the dashboard of a CERO (its equipment or its
+ * Motor), or a message instead of the cards.
+ */
+function seleccionDe(ruta: string[]): { cero: CeroId } | { cero: null; aviso: string } {
+  const nodos = resolverRuta(ruta) ?? [];
+  const equipo = nodos.find((n) => n.nivel === 'equipo');
+  const componente = nodos.find((n) => n.nivel === 'componente');
+  if (!equipo) return { cero: null, aviso: 'Elige un equipo para ver su información' };
+  if (componente && !componente.sensores) return { cero: null, aviso: 'Sin mediciones para este componente' };
+  if (!equipo.cero) return { cero: null, aviso: 'Sin mediciones para este equipo' };
+  return { cero: equipo.cero };
+}
+
+/** Card with a title and a message in place of its content */
+function AvisoCard({ titulo, texto }: { titulo: string; texto: string }) {
+  return (
+    <div className={styles.card}>
+      <h3 className={styles.cardTitle}>{titulo}</h3>
+      <p className={styles.avisoCard} role="status">
+        {texto}
+      </p>
+    </div>
+  );
 }
 
 interface DashboardPageProps {
@@ -116,58 +162,93 @@ interface DashboardPageProps {
 }
 
 export function DashboardPage({ onLogout }: DashboardPageProps) {
-  const [activeTab, setActiveTab] = useState<NavTabId>('resumen');
-  const [cero, setCero] = useState<CeroId>('CERO-010');
+  // Route chosen in the equipment tree, kept across reloads
+  const [ruta, setRuta] = useState<string[]>(rutaGuardada);
   // One period for the donut, the events table and the trend chart
   const [periodo, setPeriodo] = useState<Periodo>(PERIODO_INICIAL);
   const [variableId, setVariableId] = useState<TrendVariableId>('corriente');
-  const [ceroCheck, setCeroCheck] = useState<CeroCheck>({ status: 'idle' });
-  const checkRequest = useRef<AbortController | null>(null);
+  const [trendModo, setTrendModo] = useState<TrendModo>('resumen');
 
-  useEffect(() => () => checkRequest.current?.abort(), []);
-
-  // Picking a CERO checks it exists in the database. A newer pick cancels
-  // the previous request. Demo mode (Netlify) has no backend: no check.
-  function handleCeroChange(next: CeroId) {
-    setCero(next);
-    checkRequest.current?.abort();
-    if (DEMO_MODE) return;
-
-    const controller = new AbortController();
-    checkRequest.current = controller;
-    setCeroCheck({ status: 'loading' });
-    fetchEquipo(next, controller.signal)
-      .then(() => setCeroCheck({ status: 'ok' }))
-      .catch((err: unknown) => {
-        if (controller.signal.aborted) return;
-        setCeroCheck({ status: 'error', message: err instanceof Error ? err.message : String(err) });
-      });
+  function cambiarRuta(siguiente: string[]) {
+    setRuta(siguiente);
+    try {
+      localStorage.setItem(RUTA_KEY, JSON.stringify(siguiente));
+    } catch {
+      // storage blocked (private mode): the route just is not kept
+    }
   }
+
+  // The CERO of the route (null: no equipment with data chosen)
+  const seleccion = seleccionDe(ruta);
+  const cero = seleccion.cero;
+
+  // The chosen CERO is checked against the database; a newer choice cancels
+  // the previous request. Demo mode (Netlify) has no backend: no check.
+  const verificacionBackend = useBackend(DEMO_MODE || !cero ? null : `equipo|${cero}`, (signal) =>
+    fetchEquipo(cero ?? '', signal),
+  );
+  const ceroCheck: CeroCheck =
+    verificacionBackend.status === 'data'
+      ? { status: 'ok' }
+      : verificacionBackend.status === 'error'
+        ? { status: 'error', message: verificacionBackend.message }
+        : { status: verificacionBackend.status };
 
   const clave = periodoClave(periodo);
   const variable =
     mockData.trendVariables.find((v) => v.id === variableId) ?? mockData.trendVariables[0];
-  const variableTitle = variable.unit ? `${variable.label} (${variable.unit})` : variable.label;
 
   // A single request (one execution of dbo.sp_vx_resumen_estados) feeds the
   // donut, the motor state and the events table, so they always agree.
   // Demo mode (Netlify) simulates the same data; variables without a
   // database code stay simulated in the trend chart.
-  const bloquesBackend = useBackend(DEMO_MODE ? null : `${cero}|${clave}`, (signal) =>
-    fetchBloques(cero, periodo, signal),
+  const bloquesBackend = useBackend(DEMO_MODE || !cero ? null : `${cero}|${clave}`, (signal) =>
+    fetchBloques(cero ?? '', periodo, signal),
   );
-  const bloquesSimulados = useMemo(() => (DEMO_MODE ? bloquesDemo(cero, periodo) : null), [cero, periodo]);
+  const bloquesSimulados = useMemo(() => (DEMO_MODE && cero ? bloquesDemo(cero, periodo) : null), [cero, periodo]);
   const bloques = bloquesSimulados ?? bloquesBackend;
-  const trendCodigo = DEMO_MODE ? undefined : variable.codigo;
+  const trendCodigo = DEMO_MODE || !cero ? undefined : variable.codigo;
   const medicionesBackend = useBackend(
     trendCodigo ? `${cero}|${trendCodigo}|${clave}` : null,
-    (signal) => fetchMediciones(cero, trendCodigo ?? '', periodo, signal),
+    (signal) => fetchMediciones(cero ?? '', trendCodigo ?? '', periodo, signal),
   );
   const medicionesSimuladas = useMemo(
-    () => (bloquesSimulados ? medicionesDemo(cero, variable, bloquesSimulados) : null),
+    () => (cero && bloquesSimulados ? medicionesDemo(cero, variable, bloquesSimulados) : null),
     [cero, variable, bloquesSimulados],
   );
-  const mediciones = medicionesSimuladas ?? medicionesBackend;
+
+  // Detalle: shorter intervals over the resolved period of the blocks (a
+  // fixed number of days only has dates once its blocks arrive)
+  const detalle = trendModo === 'detalle';
+  const bloquesListos = bloques.status === 'data' ? bloques.data : null;
+  const detalleDesde = bloquesListos?.desde;
+  const detalleHasta = bloquesListos?.fecha_referencia;
+  const detalleBackend = useBackend(
+    detalle && trendCodigo && detalleDesde && detalleHasta ? `${cero}|${trendCodigo}|${detalleDesde}|${detalleHasta}` : null,
+    (signal) => fetchMedicionesDetalle(cero ?? '', trendCodigo ?? '', detalleDesde ?? '', detalleHasta ?? '', signal),
+  );
+  const detalleSimulado = useMemo(
+    () => (cero && detalle && bloquesSimulados ? medicionesDemo(cero, variable, bloquesSimulados, true) : null),
+    [detalle, cero, variable, bloquesSimulados],
+  );
+  // Blocks failed: their error; no records in the period: the (empty) Resumen data
+  const detalleMediciones: BackendState<MedicionesData> =
+    detalleSimulado ??
+    (bloques.status === 'error' ? bloques : bloquesListos && !detalleDesde ? medicionesBackend : detalleBackend);
+  const mediciones = detalle ? detalleMediciones : (medicionesSimuladas ?? medicionesBackend);
+  // Each point at the middle of its interval; drawn value: the interval maximum
+  const puntosMedidos = useMemo(() => {
+    if (mediciones.status !== 'data') return null;
+    const puntoMs = mediciones.data.minutos_punto * 60_000;
+    const points: TrendSeriesPoint[] = mediciones.data.puntos.map((p) => ({
+      t: Date.parse(p.inicio) + puntoMs / 2,
+      value: p.promedio,
+      max: p.maximo,
+      lecturas: p.lecturas,
+      marcas: p.marcas,
+    }));
+    return { points, puntoMs };
+  }, [mediciones]);
 
   // Last loaded data: keeps the selector dates steady while a new period
   // loads (a fixed period shows its own dates once its data arrives)
@@ -175,7 +256,7 @@ export function DashboardPage({ onLogout }: DashboardPageProps) {
   if (bloques.status === 'data' && bloques.data !== ultimosBloques) setUltimosBloques(bloques.data);
   const periodoFechas = fechasDelPeriodo(periodo, ultimosBloques);
 
-  const donut = donutFromBloques(bloques, cero);
+  const donut = donutFromBloques(bloques, cero ?? '');
   const motorInfo =
     bloques.status === 'data' && bloques.data.estado_actual
       ? { ...mockData.motorInfo, estado: bloques.data.estado_actual }
@@ -185,6 +266,16 @@ export function DashboardPage({ onLogout }: DashboardPageProps) {
   // the current period counts: while its blocks load, the trend's own period
   // (same dates); the previous blocks only as a last resort
   const bloquesActuales = bloques.status === 'data' ? bloques.data : null;
+  // State blocks (the same as the donut and the events table) for the Detalle timeline
+  const trendEstados = useMemo<TrendEstado[]>(
+    () =>
+      (bloquesActuales?.bloques ?? []).map((b) => ({
+        desde: Date.parse(b.inicio),
+        hasta: Date.parse(b.fin),
+        segmento: b.segmento,
+      })),
+    [bloquesActuales],
+  );
   const medicionesActuales = mediciones.status === 'data' ? mediciones.data : null;
   const ejeDesdeIso = bloquesActuales?.desde ?? medicionesActuales?.desde ?? ultimosBloques?.desde;
   const ejeHastaIso =
@@ -206,35 +297,24 @@ export function DashboardPage({ onLogout }: DashboardPageProps) {
   } else if (mediciones.status === 'error') {
     trendPoints = [];
     trendNotice = { text: mediciones.message, error: true };
-  } else if (mediciones.status === 'data') {
-    // Each point at the middle of its interval
-    trendPuntoMs = mediciones.data.minutos_punto * 60_000;
-    trendPoints = mediciones.data.puntos.map((p) => ({
-      t: Date.parse(p.inicio) + trendPuntoMs / 2,
-      value: p.promedio,
-      max: p.maximo,
-      marcas: p.marcas,
-    }));
-    trendNotice = trendPoints.length
-      ? { text: `Promedio ${etiquetaPunto(mediciones.data.minutos_punto)} con el motor encendido` }
-      : { text: `Sin mediciones de ${variable.label.toLowerCase()} para ${cero} en el período` };
+  } else if (puntosMedidos) {
+    trendPoints = puntosMedidos.points;
+    trendPuntoMs = puntosMedidos.puntoMs;
+    if (!trendPoints.length) trendNotice = { text: `Sin mediciones de ${variable.label.toLowerCase()} para ${cero} en el período` };
   }
-  const trendUmbral = mediciones.status === 'data' ? mediciones.data.umbral : null;
-  // Evento / Mantenimiento blocks of the events table as chart bands (current period only)
-  const trendBandas: TrendBanda[] = (bloquesActuales?.bloques ?? [])
-    .filter((b) => b.segmento === 'EVENTO' || b.segmento === 'MANTENIMIENTO')
-    .map((b) => ({ desde: Date.parse(b.inicio), hasta: Date.parse(b.fin), tipo: b.segmento as TrendBanda['tipo'] }));
-  const motorLabel = cero === mockData.motor.id ? `${cero} — ${mockData.motor.name}` : cero;
+  // Red line: DEMO value, or UMBRAL_MAX of ConfiguracionVariables with real data
+  const referencia = lineaReferencia(variable.id, mediciones.status === 'data' ? mediciones.data.umbral : null);
+  const rutaTexto = textoRuta(ruta);
 
   return (
     <div className={styles.dashboard}>
       {/* Desktop sidebar */}
-      <Sidebar tabs={NAV_TABS} active={activeTab} onChange={setActiveTab} onLogout={onLogout} />
+      <Sidebar ruta={ruta} onRutaChange={cambiarRuta} verificacion={ceroCheck} onLogout={onLogout} />
 
-      {/* Mobile header + tabs */}
+      {/* Phone portrait: header, then the tree as a folding panel */}
       <header className={styles.mobileHeader}>
         <div className={styles.mobileLogo}>VX</div>
-        <NavTabs tabs={NAV_TABS} active={activeTab} onChange={setActiveTab} />
+        <span className={styles.mobileTitle}>VERTEX</span>
         <button
           type="button"
           className={styles.mobileLogout}
@@ -245,67 +325,88 @@ export function DashboardPage({ onLogout }: DashboardPageProps) {
           <LogoutIcon />
         </button>
       </header>
+      <ArbolMovil ruta={ruta} onRutaChange={cambiarRuta} verificacion={ceroCheck} />
 
       <main className={styles.main}>
+        {/* Route of the chosen equipment: information only, navigation is the tree */}
+        <p className={styles.rutaTexto} title={rutaTexto || undefined}>
+          {rutaTexto || 'Ningún equipo elegido'}
+        </p>
         <div className={styles.pageTitle}>
-          <div className={styles.motorBadge}>{motorLabel}</div>
           <h1>Resumen operativo</h1>
         </div>
 
         <div className={styles.grid}>
-          {/* Donut column: selectors on top, then the donut card */}
+          {/* Donut column: period selector on top, then the donut card */}
           <div className={`${styles.col5} ${styles.colStack}`}>
-            <DonutFilters
-              cero={cero}
-              periodoFechas={periodoFechas}
-              ceroCheck={ceroCheck}
-              onCeroChange={handleCeroChange}
-              onPeriodoChange={setPeriodo}
-            />
-            <DonutPanel
-              segments={donut.segments}
-              totalHours={donut.totalHours}
-              motorInfo={motorInfo}
-              periodo={donut.periodo}
-              notice={donut.notice}
-            />
+            {seleccion.cero === null ? (
+              <AvisoCard titulo="Horas por estado" texto={seleccion.aviso} />
+            ) : (
+              <>
+                <DonutFilters periodoFechas={periodoFechas} onPeriodoChange={setPeriodo} />
+                <DonutPanel
+                  segments={donut.segments}
+                  totalHours={donut.totalHours}
+                  motorInfo={motorInfo}
+                  periodo={donut.periodo}
+                  notice={donut.notice}
+                />
+              </>
+            )}
           </div>
 
           {/* Trend column: variable picker on top, then the trend card */}
           <div className={`${styles.col7} ${styles.colStack}`}>
-            <TrendVariablePicker
-              variables={mockData.trendVariables}
-              value={variableId}
-              onChange={setVariableId}
-            />
-            <TrendChart
-              title={`Tendencia — ${variableTitle}`}
-              yTitle={variableTitle}
-              points={trendPoints}
-              puntoMs={trendPuntoMs}
-              desde={ejeDesde}
-              hasta={ejeHasta}
-              nominalValue={variable.nominal}
-              umbral={trendUmbral}
-              bandas={trendBandas}
-              notice={trendNotice}
-            />
+            {seleccion.cero === null ? (
+              <AvisoCard titulo="Tendencia" texto={seleccion.aviso} />
+            ) : (
+              <>
+                <TrendVariablePicker
+                  variables={mockData.trendVariables}
+                  value={variableId}
+                  onChange={setVariableId}
+                />
+                <TrendChart
+                  title={`Tendencia — ${variable.label}`}
+                  unidad={variable.unit}
+                  modo={trendModo}
+                  onModoChange={setTrendModo}
+                  points={trendPoints}
+                  puntoMs={trendPuntoMs}
+                  desde={ejeDesde}
+                  hasta={ejeHasta}
+                  linea={referencia.valor}
+                  marcarFuera={referencia.marcar && Boolean(variable.codigo)}
+                  curva={variable.curva}
+                  estados={trendEstados}
+                  notice={trendNotice}
+                />
+              </>
+            )}
           </div>
 
           {/* State blocks of the selected CERO: same request and period as the donut */}
           <div className={styles.col5}>
-            <EventsSummary state={bloques} periodo={periodo} onPeriodoChange={setPeriodo} />
+            {seleccion.cero === null ? (
+              <AvisoCard titulo="Resumen de eventos" texto={seleccion.aviso} />
+            ) : (
+              <EventsSummary state={bloques} periodo={periodo} onPeriodoChange={setPeriodo} />
+            )}
           </div>
 
           {/* Map placeholder */}
           <div className={styles.col7}>
-            <div className={styles.card}>
-              <h3 className={styles.cardTitle}>Ubicación de equipos</h3>
-              <div className={styles.mapPlaceholder}>
-                <span>🗺️</span>
-                <div>Mapa de planta — Fase 2</div>
+            {seleccion.cero === null ? (
+              <AvisoCard titulo="Ubicación de equipos" texto={seleccion.aviso} />
+            ) : (
+              <div className={styles.card}>
+                <h3 className={styles.cardTitle}>Ubicación de equipos</h3>
+                <div className={styles.mapPlaceholder}>
+                  <span>🗺️</span>
+                  <div>Mapa de planta — Fase 2</div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </main>

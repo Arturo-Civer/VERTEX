@@ -1,9 +1,10 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useId, useState } from 'react';
+import type { KeyboardEvent, MouseEvent } from 'react';
 import styles from './dashboard.module.css';
 
 /** Dates shown and allowed by the selector (AAAA-MM-DD, UTC days) */
 export interface PeriodoFechas {
-  /** Current period, whatever set it (these calendars or the table buttons) */
+  /** Current period, whatever set it (these fields or the table buttons) */
   desde: string;
   hasta: string;
   /** Days with records: the calendars cannot go outside them */
@@ -12,145 +13,157 @@ export interface PeriodoFechas {
 }
 
 interface PeriodoSelectorProps {
-  id: string;
-  /** Undefined while the first period is loading */
+  /** Undefined only before the first period has loaded */
   fechas?: PeriodoFechas;
+  /** Called with a valid range as soon as a date changes */
   onAplicar: (desde: string, hasta: string) => void;
 }
 
 /** dd/mm/aaaa from AAAA-MM-DD */
 const ddmmaaaa = (fecha: string) => `${fecha.slice(8, 10)}/${fecha.slice(5, 7)}/${fecha.slice(0, 4)}`;
 
+/** The browser's own calendar right under the field (not every browser has showPicker) */
+function abrirCalendario(input: HTMLInputElement) {
+  try {
+    input.showPicker?.();
+  } catch {
+    // e.g. not allowed without a user gesture: the field still takes typing
+  }
+}
+
+function CalendarIcon() {
+  return (
+    <svg
+      className={styles.periodoIcono}
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M3 10h18M8 3v4M16 3v4" />
+    </svg>
+  );
+}
+
+/** Message for a range that cannot be applied (null: valid) */
+function errorDe(desde: string, hasta: string, min?: string, max?: string): string | null {
+  if (desde > hasta) return 'La fecha de inicio no puede ser posterior a la de fin';
+  if ((min && desde < min) || (max && hasta > max)) {
+    return min && max ? `Elige fechas entre el ${ddmmaaaa(min)} y el ${ddmmaaaa(max)}` : 'Fecha fuera del rango con datos';
+  }
+  return null;
+}
+
 /**
- * Period selector of the donut: a button with the current dates that opens
- * two calendars (start and end date) for a free range. The fixed periods are
- * the buttons of the events table; both set the same shared period.
+ * Período of the dashboard: two native date fields ("Desde" → "Hasta")
+ * always visible in one box. A valid change applies at once to the shared
+ * period (no Apply button); an invalid range is marked in red and not
+ * applied; an emptied field gets its previous date back when left. The
+ * fields follow the period when the table buttons (7 / 15 / 30 días / Todo)
+ * change it, and keep their dates while the new one loads.
  */
-export function PeriodoSelector({ id, fechas, onAplicar }: PeriodoSelectorProps) {
-  const [abierto, setAbierto] = useState(false);
-  const [desde, setDesde] = useState('');
-  const [hasta, setHasta] = useState('');
-  const raiz = useRef<HTMLDivElement>(null);
-  const boton = useRef<HTMLButtonElement>(null);
-  const inicioId = useId();
-  const finId = useId();
+export function PeriodoSelector({ fechas, onAplicar }: PeriodoSelectorProps) {
+  const grupoId = useId();
+  const desdeId = useId();
+  const hastaId = useId();
   const errorId = useId();
 
-  // Close on Escape (focus back to the button) or on a click outside
-  useEffect(() => {
-    if (!abierto) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setAbierto(false);
-        boton.current?.focus();
-      }
-    };
-    const onPointer = (e: PointerEvent) => {
-      if (!raiz.current?.contains(e.target as Node)) setAbierto(false);
-    };
-    document.addEventListener('keydown', onKey);
-    document.addEventListener('pointerdown', onPointer);
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.removeEventListener('pointerdown', onPointer);
-    };
-  }, [abierto]);
-
-  function abrir() {
-    if (abierto) {
-      setAbierto(false);
-      return;
-    }
-    // The calendars start at the current period
+  // What the fields show: the current period, or what the user is typing
+  const [desde, setDesde] = useState(fechas?.desde ?? '');
+  const [hasta, setHasta] = useState(fechas?.hasta ?? '');
+  // A new period from outside (table buttons, another equipment) replaces it
+  const [origen, setOrigen] = useState(fechas);
+  if (fechas?.desde !== origen?.desde || fechas?.hasta !== origen?.hasta) {
+    setOrigen(fechas);
     setDesde(fechas?.desde ?? '');
     setHasta(fechas?.hasta ?? '');
-    setAbierto(true);
   }
 
-  let error: string | null = null;
-  if (!desde || !hasta) error = 'Elige la fecha de inicio y la de fin';
-  else if (desde > hasta) error = 'La fecha de inicio no puede ser posterior a la de fin';
+  const completo = desde !== '' && hasta !== '';
+  const error = completo ? errorDe(desde, hasta, fechas?.min, fechas?.max) : null;
 
-  function aplicar(e: React.FormEvent) {
-    e.preventDefault();
-    if (error) return;
-    onAplicar(desde, hasta);
-    setAbierto(false);
-    boton.current?.focus();
+  function cambiar(nuevoDesde: string, nuevoHasta: string) {
+    setDesde(nuevoDesde);
+    setHasta(nuevoHasta);
+    if (!nuevoDesde || !nuevoHasta) return;
+    if (errorDe(nuevoDesde, nuevoHasta, fechas?.min, fechas?.max)) return;
+    if (nuevoDesde !== fechas?.desde || nuevoHasta !== fechas?.hasta) onAplicar(nuevoDesde, nuevoHasta);
   }
+
+  // Emptied with the calendar's "Borrar" (or by hand): back to the period's date
+  const restaurar = () => {
+    if (!desde) setDesde(fechas?.desde ?? '');
+    if (!hasta) setHasta(fechas?.hasta ?? '');
+  };
+
+  const alClic = (e: MouseEvent<HTMLInputElement>) => abrirCalendario(e.currentTarget);
+  const alTecla = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      abrirCalendario(e.currentTarget);
+    }
+  };
+
+  // Range with data: tooltip of the box (no text line under it)
+  const rango =
+    fechas?.min && fechas.max
+      ? `Datos del ${ddmmaaaa(fechas.min)} al ${ddmmaaaa(fechas.max)} (UTC)${fechas.hasta === fechas.max ? ' · hasta la última medición' : ''}`
+      : undefined;
+  const describe = error ? errorId : undefined;
+  const campo = (
+    id: string,
+    etiqueta: string,
+    valor: string,
+    min: string | undefined,
+    max: string | undefined,
+    onChange: (v: string) => void,
+  ) => (
+    <div className={styles.periodoCampo}>
+      <label htmlFor={id} className={styles.periodoEtiqueta}>
+        {etiqueta}
+      </label>
+      <input
+        id={id}
+        type="date"
+        className={styles.periodoInput}
+        value={valor}
+        min={min}
+        max={max}
+        required
+        disabled={!fechas}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describe}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={restaurar}
+        onClick={alClic}
+        onKeyDown={alTecla}
+      />
+    </div>
+  );
 
   return (
-    <div className={styles.periodoSelector} ref={raiz}>
-      <button
-        ref={boton}
-        id={id}
-        type="button"
-        className={`${styles.filterSelect} ${styles.periodoBoton}`}
-        aria-haspopup="dialog"
-        aria-expanded={abierto}
-        onClick={abrir}
-      >
-        {fechas ? `${ddmmaaaa(fechas.desde)} – ${ddmmaaaa(fechas.hasta)}` : 'Cargando…'}
-      </button>
-
-      {abierto && (
-        <form className={styles.periodoPanel} role="dialog" aria-label="Elegir período" onSubmit={aplicar}>
-          <div className={styles.periodoFechas}>
-            <div className={styles.periodoCampo}>
-              <label htmlFor={inicioId} className={styles.filterLabel}>
-                Fecha inicio
-              </label>
-              <input
-                id={inicioId}
-                type="date"
-                className={styles.periodoInput}
-                value={desde}
-                min={fechas?.min}
-                max={hasta || fechas?.max}
-                required
-                autoFocus
-                aria-describedby={error ? errorId : undefined}
-                onChange={(e) => setDesde(e.target.value)}
-              />
-            </div>
-            <div className={styles.periodoCampo}>
-              <label htmlFor={finId} className={styles.filterLabel}>
-                Fecha fin
-              </label>
-              <input
-                id={finId}
-                type="date"
-                className={styles.periodoInput}
-                value={hasta}
-                min={desde || fechas?.min}
-                max={fechas?.max}
-                required
-                aria-describedby={error ? errorId : undefined}
-                onChange={(e) => setHasta(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {fechas?.min && fechas.max && (
-            <p className={styles.periodoAyuda}>
-              Datos del {ddmmaaaa(fechas.min)} al {ddmmaaaa(fechas.max)} (UTC)
-            </p>
-          )}
-          {error && desde && hasta && (
-            <p id={errorId} className={styles.periodoError} role="alert">
-              {error}
-            </p>
-          )}
-
-          <div className={styles.periodoAcciones}>
-            <button type="button" className={styles.periodoCancelar} onClick={() => setAbierto(false)}>
-              Cancelar
-            </button>
-            <button type="submit" className={styles.periodoAplicar} disabled={error !== null}>
-              Aplicar
-            </button>
-          </div>
-        </form>
+    <div className={styles.periodoSelector} role="group" aria-labelledby={grupoId}>
+      <span id={grupoId} className={styles.filterLabel}>
+        Período
+      </span>
+      <div className={`${styles.periodoCaja} ${error ? styles.periodoCajaError : ''}`} title={rango}>
+        <CalendarIcon />
+        {campo(desdeId, 'Desde', desde, fechas?.min, hasta || fechas?.max, (v) => cambiar(v, hasta))}
+        <span className={styles.periodoFlecha} aria-hidden="true">
+          →
+        </span>
+        {campo(hastaId, 'Hasta', hasta, desde || fechas?.min, fechas?.max, (v) => cambiar(desde, v))}
+      </div>
+      {error && (
+        <p id={errorId} className={styles.periodoError} role="alert">
+          {error}
+        </p>
       )}
     </div>
   );

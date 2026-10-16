@@ -1,17 +1,6 @@
-import type { DashboardMockData, NavTab } from '../../contracts/dashboard';
-
-export const NAV_TABS: NavTab[] = [
-  { id: 'resumen', label: 'Resumen', icon: '📊' },
-  { id: 'motores', label: 'Motores', icon: '⚙️' },
-  { id: 'mantenimiento', label: 'Mantenimiento', icon: '🔧' },
-  { id: 'produccion', label: 'Producción', icon: '🏭' },
-];
+import type { DashboardMockData } from '../../contracts/dashboard';
 
 export const mockData: DashboardMockData = {
-  motor: {
-    id: 'CERO-010',
-    name: 'Motor WEG W22 3CV-4P',
-  },
   motorInfo: {
     producto: 'Ceranatto',
     estado: 'ENCENDIDO',
@@ -60,14 +49,15 @@ export const mockData: DashboardMockData = {
   ],
   // Simulated readings that fluctuate around each variable's nominal value
   trendVariables: [
-    // With `codigo`, the backend's daily averages replace `data` (normal mode);
-    // `data` stays for demo mode. Nominal values: middle of the normal range.
+    // With `codigo`, the backend's data replaces `data` (normal mode); `data`
+    // stays for producción. The red line of each variable: referenciasTendencia.ts.
+    // Temperature and vibration change gradually (smooth curve); current and
+    // voltage keep straight segments so jumps and peaks show.
     {
       id: 'corriente',
       codigo: 'CORRIENTE_MOTOR',
       label: 'Corriente',
       unit: 'A',
-      nominal: 5.2,
       data: [
         { day: '01', value: 5.1 },
         { day: '05', value: 5.3 },
@@ -83,7 +73,7 @@ export const mockData: DashboardMockData = {
       codigo: 'VIBRACION_MOT',
       label: 'Vibración',
       unit: 'mm/s',
-      nominal: 2.5,
+      curva: 'suave',
       data: [
         { day: '01', value: 2.3 },
         { day: '05', value: 2.5 },
@@ -99,7 +89,7 @@ export const mockData: DashboardMockData = {
       codigo: 'TEMPERATURA_MOT',
       label: 'Temperatura',
       unit: '°C',
-      nominal: 60,
+      curva: 'suave',
       data: [
         { day: '01', value: 57 },
         { day: '05', value: 61 },
@@ -115,7 +105,6 @@ export const mockData: DashboardMockData = {
       codigo: 'VOLTAJE_MOTOR',
       label: 'Voltaje',
       unit: 'V',
-      nominal: 220,
       data: [
         { day: '01', value: 219.6 },
         { day: '05', value: 220.3 },
@@ -129,7 +118,6 @@ export const mockData: DashboardMockData = {
     {
       id: 'produccion',
       label: 'Producción',
-      nominal: 100,
       data: [
         { day: '01', value: 94 },
         { day: '05', value: 102 },
