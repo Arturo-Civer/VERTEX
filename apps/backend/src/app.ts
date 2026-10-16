@@ -2,6 +2,7 @@ import cors from 'cors';
 import express from 'express';
 import { equiposRouter } from './domains/equipos/equipos.routes';
 import { identityRouter } from './domains/identity/identity.routes';
+import { estadoBase } from './shared/db';
 
 /** Express app: JSON bodies, CORS, health check and the domain routes */
 export function createApp() {
@@ -15,8 +16,9 @@ export function createApp() {
   app.use(cors({ origin: origins }));
   app.use(express.json({ limit: '100kb' }));
 
-  app.get('/health', (_req, res) => {
-    res.json({ status: 'ok' });
+  // The backend answers; `db` is the real state of SQL Server (SELECT 1)
+  app.get('/health', async (_req, res) => {
+    res.json({ status: 'ok', db: await estadoBase() });
   });
 
   app.use('/api/identity', identityRouter);

@@ -11,6 +11,7 @@ Express y base de datos SQL Server.
   - `AuthFlow.tsx`: panel de marca (desktop) + tarjeta de login.
   - `LoginForm.tsx`: campo "Usuario o correo" + contraseña con botón mostrar/ocultar, estados de carga y error.
   - `auth.service.ts`: `login()`, `getStoredToken()` (descarta tokens vencidos) y `logout()`. Token en `localStorage` con clave `vx_token`.
+    - `logout()` borra todas las claves `vx_` (token y `vx_ruta`); un token vencido también llama a `logout()`. Al volver a entrar, el árbol empieza en las cinco áreas cerradas y el dashboard en su estado inicial (período, variable y Resumen / Detalle no se guardan en el navegador).
   - Dos modos:
     - **Normal:** `POST {VITE_API_URL}/api/identity/login`.
     - **Demo** (`VITE_DEMO_MODE=true`, para Netlify): valida contra `VITE_DEMO_EMAIL` / `VITE_DEMO_PASSWORD` sin backend y genera un token local `{ demo: true, exp: +8h }` sin firma real.
@@ -18,13 +19,15 @@ Express y base de datos SQL Server.
 - **Dashboard** (`src/modules/dashboard/`): en modo normal, la dona, el estado del motor, la tendencia y la tabla de eventos leen la base; el resto sigue simulado (`mockData.ts`, `donutSimulation.ts`). En modo demo todo es simulado.
   - **Árbol de equipos** (`ArbolEquipos.tsx`) en lugar de las antiguas pestañas (Resumen / Motores / Mantenimiento / Producción) y del selector de CERO: Área → Sección → Grupo → Equipo → Componente.
     - **⚠ DEMO:** la estructura está en `jerarquiaDemo.ts` (`DEFINICION`); se reemplazará por tablas en la base. Solo los CERO-010…013 tienen datos (`cero`) y solo su Motor tiene sensores (`sensores`).
-    - Se ve solo la ruta (cada nivel con "−") y debajo las hijas del último nivel (con "+"); las hermanas de lo elegido se ocultan. Clic en el nombre de un nivel de la ruta: queda como último; "−": sale de la ruta. Volver siempre borra los niveles inferiores.
-    - Sangría de 1ch por nivel, nombres largos con "…" y `title`; componente elegido resaltado con `--vx-accent`. Botones nativos (Tab / Enter); el foco queda en el árbol tras cada cambio.
+    - En cada nivel hay como mucho una opción abierta (en la ruta, con "−"): las de **arriba** siguen visibles y cerradas (con "+"), las de **abajo** se ocultan, y bajo la abierta aparece su nivel siguiente. Igual en los cinco niveles.
+    - Abrir otra opción (nombre o "+") cierra la abierta y borra lo elegido dentro; al volver a abrirla está limpia. "−" la cierra y muestra todo el nivel cerrado. Clic en el nombre de una opción abierta: borra los niveles de debajo. Nunca se conservan selecciones inferiores.
+    - Cuadro "+" / "−" de 11 px (texto de 13 px), borde de 1 px, esquinas de 2 px y signo de líneas de 1 px (`.arbolSigno`, CSS); el área de clic es mayor que el cuadro (`::after`, más en el panel del teléfono). Un componente elegido también tiene "−".
+    - Sangría de 1ch por nivel, nombres largos con "…" y `title`; componente elegido resaltado con `--vx-accent`. Botones nativos (Tab / Enter); el foco queda en el árbol tras cada cambio (en la opción afectada o en la primera hija).
     - Desktop y teléfono horizontal: en el Sidebar (que conserva Cerrar sesión). Teléfono vertical: `ArbolMovil`, una línea con la ruta bajo la cabecera que se despliega al tocarla y se pliega sola al elegir un equipo o componente.
-    - La ruta se guarda en `localStorage` (`vx_ruta`) y se restaura al recargar; si un nivel ya no existe, vuelve a la raíz.
+    - La ruta se guarda en `localStorage` (`vx_ruta`) y se restaura al recargar con la sesión abierta; si un nivel ya no existe, vuelve a la raíz. Cerrar sesión la borra.
     - `seleccionDe()` (`DashboardPage.tsx`): sin equipo, "Elige un equipo para ver su información"; componente sin sensores, "Sin mediciones para este componente"; equipo sin datos, "Sin mediciones para este equipo" (en las cuatro tarjetas). Un CERO o su Motor cargan el dashboard de ese CERO con los mismos servicios y endpoints.
     - Verificación del CERO elegido (`GET /api/equipos/:codigo` con `useBackend`, también al restaurar la ruta): spinner, ✓ verde o "!" rojo con el mensaje bajo el equipo en el árbol. En modo demo no se consulta.
-    - Arriba del dashboard, la ruta como texto informativo (no clicable); en teléfono vertical la muestra la línea del panel.
+    - Arriba del dashboard solo el título "Resumen operativo" (la ruta ya está en el árbol); en teléfono vertical la ruta se ve en la línea del panel plegado.
   - **Período compartido** (`periodo.ts`: `{ dias }` o `{ desde, hasta }` AAAA-MM-DD, por defecto 30 días): uno solo para la dona, la tabla de eventos y la tendencia. Lo cambian los campos de fecha y los botones de la tabla.
   - `PeriodoSelector.tsx`: "📅 Desde [fecha] → Hasta [fecha]", dos `<input type="date">` nativos en una caja del ancho de la tarjeta de la dona, siempre en una línea (≤ 340 px de ancho: sin ícono y letra menor).
     - Clic o Enter abren el calendario del navegador (`showPicker`). Límites = primer y último registro; "Hasta" ≥ "Desde".
@@ -56,6 +59,7 @@ Express y base de datos SQL Server.
     - Pendiente (propuesto, no implementado): para usar `NOMINAL`, `sp_vx_tendencia_variable` debería devolverlo junto a `umbral_min` / `umbral_max` y `findMediciones` (`equipos.service.ts`) incluirlo en la respuesta. `UMBRAL_MIN` llega pero la gráfica todavía no lo dibuja.
     - Modo demo: `demoMedicionesData` (`operacion.service.ts`) simula lecturas por minuto en los bloques ENCENDIDO del período demo, agrupadas como el SP, con los mismos umbrales que la base (temperatura que sube de 40 a 62 °C en el turno). La marca de evento simulada (10 min: vibración en CERO-010 el 21/09 06:11, temperatura en CERO-012 el 09/10 09:30) sale igual en la gráfica y en las `marcas` de los bloques.
   - `operacion.service.ts` (fetch de mediciones y su simulación demo) y `useBackend.ts` (hook genérico con cancelación por clave).
+  - **Reintentos:** los servicios lanzan `ErrorTemporal` (`shared/api.ts`) ante falla de red o 502 / 503 / 504; `useBackend` los reintenta 2 veces (a los 2 y 5 s) mostrando "Cargando…". 400, 404 y 500 nunca se reintentan. Si sigue fallando, el estado de error trae `reintentar` y aparece el botón **"Reintentar"** (`BotonReintentar.tsx`) junto al mensaje en la dona, la tabla y la tendencia. En Detalle, si falla un tramo no se piden los demás.
   - **Resumen de eventos** (`EventsSummary.tsx`, `bloques.service.ts`), en el lugar de las antiguas barras por turno:
     - tabla # / Inicio / Fin / Duración / Estado con los bloques de estado del CERO seleccionado (el mismo cálculo que la dona), y botones 7 / 15 / 30 días / Todo que cambian el período compartido;
     - # numera las filas en el orden mostrado: 1 es el bloque más reciente; la regla que decidió cada bloque sale como `title` de la fila;
@@ -78,8 +82,8 @@ Express y base de datos SQL Server.
 - También sin usar: `DonutChart.tsx` (la dona la dibuja `DonutPanel`), `KpiRow.tsx` y `mockData.kpis`.
 
 ### Backend (`apps/backend`) — Express 5 + TypeScript, `mssql`, `bcrypt`, `jsonwebtoken`
-- `src/main.ts`: conecta a SQL Server (pool global de `mssql`) y escucha en el puerto **3000**.
-- `src/app.ts`: JSON, CORS (`CORS_ORIGIN`) y `GET /health` → `{ status: "ok" }`.
+- `src/main.ts`: abre el puerto **3000** enseguida y conecta el pool global de `mssql` con `conectarConReintentos` (`src/shared/db.ts`): nunca se rinde, espera 2, 4, 8, 16, 32 s y luego 60 s entre intentos, y muestra cada intento en su ventana. Mientras no conecta, las rutas de datos responden 503.
+- `src/app.ts`: JSON, CORS (`CORS_ORIGIN`) y `GET /health` → `{ status: "ok", db: "conectada" | "sin conexión" }` (`estadoBase()`: `SELECT 1` real con límite de 3 s).
 - **`POST /api/identity/login`**
   - Body: `{ credential, password }`, donde `credential` es el email **o** el `username`.
   - Busca un usuario activo en `dbo.Usuarios` y sus roles en `dbo.UsuarioRoles` / `dbo.Roles`, y compara con bcrypt.
@@ -108,6 +112,7 @@ Express y base de datos SQL Server.
   - `variable`: CORRIENTE_MOTOR, TEMPERATURA_MOT, VIBRACION_MOT, VOLTAJE_MOTOR, FRECUENCIA_RED, POTENCIA_MOT o RPM_MOTOR; si no, 400.
   - 200 `{ variable, unidad, fecha_referencia, desde, minutos_punto, umbral: { min, max, habilitado } | null, puntos: [{ inicio, dia, promedio, minimo, maximo, lecturas, marcas }] }`.
 - `requestTimeout` de `mssql`: 30 s (`main.ts`); "Todo" puede tardar varios segundos.
+- Errores de base (`errorDeBase` en `equipos.service.ts`), ambos 503: sin conexión → "Sin conexión a la base de datos"; consulta que agota el `requestTimeout` (`RequestError` con `ETIMEOUT`) → "La base de datos tardó demasiado en responder".
 - Pendiente:
   - middlewares `authenticate` / `authorize` / `reauthenticate` (vacíos), así que todavía no hay rutas protegidas;
   - el resto de dominios (data-acquisition, hours-calculation, mantenimiento, audit), que son archivos vacíos.
@@ -156,7 +161,7 @@ Express y base de datos SQL Server.
   - Rendimiento:
     - La lectura (`INSERT #r`) usa `WITH (INDEX (IX_Mediciones_Equipo_Tiempo))` y `OPTION (MAXDOP 1, ORDER GROUP, LOOP JOIN)`: la agregación hash se desbordaba a tempdb (~10 s) y en paralelo variaba de 0,4 a 12 s. Un columnstore vacío en `#r` habilita el modo batch en las funciones de ventana.
     - `#t` calcula el número de bloque (`LAG` + suma acumulada) con PK `(bloque, event_time)` y `OPTION (MAXDOP 1, RECOMPILE)`, así el resultado 4 agrupa sin ordenar (`ORDER GROUP`). Antes se desbordaba (1 244 páginas, picos de 22 s).
-    - Tiempos en el portátil de desarrollo: 7 días ~1,5–2,5 s, toda la historia ~5–8 s (casi todo CPU; con batería la CPU baja a 1,1 GHz). Con poca memoria libre SQL Server reduce las concesiones y alguna sentencia se desborda; recomendado fijar `min server memory` (p. ej. 1 GB).
+    - Tiempos en el portátil de desarrollo: 7 días ~1,5–2,5 s, toda la historia ~5–8 s (casi todo CPU; con batería la CPU baja a 1,1 GHz). Con poca memoria libre SQL Server reduce las concesiones y alguna sentencia se desborda (ver **Memoria de SQL Server** más abajo).
     - La primera llamada tras cambiar el SP tarda más (compila).
   - Parámetros: `database/scripts/05_parametros_calculo_estados.sql` (idempotente, MERGE; re-ejecutarlo restablece estos valores). Se ejecuta con un login con escritura (`-E`), no con `app_demo_user`.
 
@@ -179,6 +184,13 @@ Express y base de datos SQL Server.
   - Encendido con el mismo criterio que el cálculo de estados: corriente > `CORRIENTE_CERO_MAX`; sin corriente, `ESTADO_MOTOR <> 0`.
   - Usa variables locales `@inicio` / `@fin` y `OPTION (RECOMPILE)`: con el plan del primer período (parameter sniffing) otros períodos eran lentísimos. ~0,1–0,5 s.
   - `sp_vx_get_serie_variable` (puntos sueltos con historial de modificaciones) es otro propósito y no lo usa el dashboard.
+- **Memoria de SQL Server** (`database/scripts/06_configurar_memoria.sql`, UTF-16 LE con BOM; afecta a toda la instancia):
+  - `min server memory` = 1024 MB y `max server memory` = 3072 MB. Ejecutar con una cuenta administradora: `sqlcmd -S localhost -E -i database\scripts\06_configurar_memoria.sql`. Idempotente, sin reiniciar el servicio. Volver atrás: 0 y 2147483647.
+  - Por qué (diagnóstico del 16/10/2026): con el valor por defecto (16 MB) y el portátil de 7,7 GB con ~1 GB libre, SQL Server cedía su memoria (avisos "memory has been paged out", error 701). Las consultas esperaban memoria (`RESOURCE_SEMAPHORE`, hasta 1 093 s), superaban los 30 s del backend y el dashboard fallaba; también con la instancia recién arrancada. Repetir peticiones (cerrar sesión y entrar) acababa funcionando porque SQL Server recuperaba memoria entre intentos.
+  - **Recomendación para el servidor de TI:** fijar `min server memory` / `max server memory` según la RAM del servidor (mínimo ≥ 1 GB para VERTEX; máximo que deje memoria al sistema operativo). "Bloquear páginas en memoria" (cuenta `NT Service\MSSQLSERVER`) queda pendiente: primero se prueba unos días solo con min/max.
+  - Diagnóstico rápido: `sys.dm_os_wait_stats` (`RESOURCE_SEMAPHORE`), `sys.dm_os_process_memory` (`process_physical_memory_low`) y el `ERRORLOG`.
+  - En el portátil de desarrollo, MySQL80 arranca solo (~600 MB); si no se usa: `Set-Service MySQL80 -StartupType Manual` y `Stop-Service MySQL80` (como administrador).
+  - SQL Server del portátil: Enterprise **Evaluation** 16.0.1000.6 (caduca a los 180 días de instalarse; entonces el servicio no arranca).
 - Login SQL `app_demo_user`: solo `SELECT` / `EXECUTE` en `VERTEX_DEMO` (`DENY INSERT/UPDATE/DELETE`).
 - **Datos de prueba (solo desarrollo):**
   - `CERO-011` "Equipo de prueba", insertado a mano en `dbo.EquiposCero` de `VERTEX_DEMO`, con el área, tipo y perfil de CERO-010. Sirve para probar el caso "encontrado"; no es un equipo real.
@@ -256,8 +268,10 @@ Ningún `.env` se sube a git (`.gitignore`). Cada carpeta tiene su `.env.example
 - verifica el puerto `DB_PORT`;
 - ejecuta `npm install` si falta `node_modules`;
 - abre dos terminales ("VERTEX Backend" y "VERTEX Frontend") con `npm run dev`, sin duplicarlas si el 3000 o el 5173 ya están ocupados;
-- espera a que respondan el backend (3000) y Vite (5173), y abre `http://localhost:5173`.
-  - El backend solo abre el puerto tras conectar con SQL Server. Si el dashboard carga antes, sus peticiones fallan ("Sin conexión con el servidor"), la dona se queda en 0 y no se reintenta hasta cambiar de CERO o de período.
+- espera hasta 90 s a que `GET /health` diga `db: "conectada"` y a que Vite (5173) responda, con un aviso cada 15 s. Si no lo logra, **no abre el navegador** y explica si falla el backend o la base (revisar la ventana "VERTEX Backend", que muestra cada intento de conexión);
+- calienta las consultas del dashboard (`/bloques` y `/mediciones` de CERO-010, 30 días, una tras otra, con su tiempo; si fallan solo avisa) y abre `http://localhost:5173`.
+  - Si el dashboard aun así recibe un error, lo reintenta solo y ofrece "Reintentar"; no hace falta cerrar sesión.
+  - Si el calentamiento agota los 30 s, falta memoria en SQL Server (ver **Memoria de SQL Server**).
 
 ```bash
 # Backend (requiere SQL Server con VERTEX_DEMO instalada)

@@ -6,13 +6,18 @@ export interface Equipo {
   area: string;
 }
 
-/** The query could not reach SQL Server (pool closed, socket lost, timeout) */
+/**
+ * The query could not be answered by SQL Server: no connection (pool closed,
+ * socket lost) or out of requestTimeout. Both answer 503 with the message.
+ */
 export class DbUnavailableError extends Error {
-  constructor(cause: unknown) {
-    super('Sin conexión a la base de datos', { cause });
+  constructor(cause: unknown, message = 'Sin conexión a la base de datos') {
+    super(message, { cause });
     this.name = 'DbUnavailableError';
   }
 }
+
+const DB_TIMEOUT = 'La base de datos tardó demasiado en responder';
 
 // dbo.EquiposCero.codigo is VARCHAR(30)
 const MAX_CODIGO_LENGTH = 30;
@@ -23,7 +28,7 @@ const CONNECTION_ERROR_CODES = new Set([
   'ECONNCLOSED',
   'ECONNRESET',
   'ENOTOPEN',
-  'ETIMEOUT',
+  'ETIMEOUT', // as a ConnectionError: the connection itself timed out
   'ELOGIN',
 ]);
 
@@ -33,10 +38,18 @@ function isConnectionError(err: unknown): boolean {
   return typeof code === 'string' && CONNECTION_ERROR_CODES.has(code);
 }
 
+/** DbUnavailableError for a database failure; null for any other error */
+function errorDeBase(err: unknown): DbUnavailableError | null {
+  // A query that ran out of requestTimeout: connected, but SQL Server is slow
+  if (err instanceof sql.RequestError && err.code === 'ETIMEOUT') return new DbUnavailableError(err, DB_TIMEOUT);
+  if (isConnectionError(err)) return new DbUnavailableError(err);
+  return null;
+}
+
 /**
  * Active equipment with the given code (e.g. CERO-010) and its area name, or
  * null when there is none. Throws DbUnavailableError when SQL Server cannot
- * be reached.
+ * be reached or does not answer in time.
  */
 export async function findEquipo(codigo: string): Promise<Equipo | null> {
   // Longer codes cannot exist, and would be truncated by the VARCHAR(30) param
@@ -53,7 +66,8 @@ export async function findEquipo(codigo: string): Promise<Equipo | null> {
       `);
     return result.recordset[0] ?? null;
   } catch (err) {
-    if (isConnectionError(err)) throw new DbUnavailableError(err);
+    const errorBase = errorDeBase(err);
+    if (errorBase) throw errorBase;
     throw err;
   }
 }
@@ -119,7 +133,7 @@ type Fila = Record<string, unknown>;
  * Runs dbo.sp_vx_resumen_estados (database/procedures), where the state
  * calculation lives, over a period.
  * Null when the equipment does not exist. Throws DbUnavailableError when SQL
- * Server cannot be reached.
+ * Server cannot be reached or does not answer in time.
  */
 async function ejecutarResumenEstados(
   codigo: string,
@@ -134,7 +148,8 @@ async function ejecutarResumenEstados(
       .execute('dbo.sp_vx_resumen_estados');
     return result.recordsets as sql.IRecordSet<Fila>[];
   } catch (err) {
-    if (isConnectionError(err)) throw new DbUnavailableError(err);
+    const errorBase = errorDeBase(err);
+    if (errorBase) throw errorBase;
     if (err instanceof sql.RequestError && err.message === SP_EQUIPO_NO_ENCONTRADO) return null;
     throw err;
   }
@@ -324,7 +339,8 @@ export async function findMediciones(
       puntos,
     };
   } catch (err) {
-    if (isConnectionError(err)) throw new DbUnavailableError(err);
+    const errorBase = errorDeBase(err);
+    if (errorBase) throw errorBase;
     if (err instanceof sql.RequestError && err.message === SP_EQUIPO_NO_ENCONTRADO) return null;
     throw err;
   }

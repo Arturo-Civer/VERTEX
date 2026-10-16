@@ -6,7 +6,8 @@
     1. Verifica que SQL Server (servicio MSSQLSERVER) esta corriendo; si no, intenta arrancarlo.
     2. Abre una terminal con el backend  (apps\backend  -> npm run dev, puerto 3000).
     3. Abre una terminal con el frontend (apps\frontend -> npm run dev, puerto 5173).
-    4. Abre el navegador en http://localhost:5173 cuando Vite responde.
+    4. Espera a que el backend confirme la base de datos (GET /health -> db "conectada")
+       y a que Vite responda; hace una peticion de calentamiento y abre el navegador.
 
     Para lanzarlo con doble clic usa el acceso directo "Iniciar VERTEX" del escritorio,
     o ejecuta:  powershell -ExecutionPolicy Bypass -File .\start-vertex.ps1
@@ -21,6 +22,13 @@ $SqlService   = 'MSSQLSERVER'
 $BackendPort  = 3000
 $FrontendPort = 5173
 $FrontendUrl  = "http://localhost:$FrontendPort"
+$HealthUrl    = "http://localhost:$BackendPort/health"
+$EsperaMaxima = 90
+# Calentamiento: las mismas consultas que hace el dashboard al elegir CERO-010
+$Calentamiento = @(
+    "http://localhost:$BackendPort/api/equipos/CERO-010/bloques?dias=30",
+    "http://localhost:$BackendPort/api/equipos/CERO-010/mediciones?variable=CORRIENTE_MOTOR&dias=30"
+)
 
 $Host.UI.RawUI.WindowTitle = 'VERTEX - Inicio'
 
@@ -57,6 +65,15 @@ function Get-DbPort {
         if ($line) { return [int]$line.Matches[0].Groups[1].Value }
     }
     return 1433
+}
+
+function Get-DbState {
+    # null: el backend no responde; si no, el campo db de /health
+    try {
+        return (Invoke-RestMethod -Uri $HealthUrl -TimeoutSec 5).db
+    } catch {
+        return $null
+    }
 }
 
 function Start-DevTerminal($Title, $Dir) {
@@ -146,20 +163,57 @@ if (Test-Port $FrontendPort) {
 }
 
 # ---------------------------------------------------------------------------
-# 4. Navegador
+# 4. Base de datos, calentamiento y navegador
 # ---------------------------------------------------------------------------
-# El backend solo abre el puerto tras conectar con SQL Server. Si el navegador
-# se abre antes, el dashboard recibe "Sin conexion con el servidor" y la dona
-# se queda en 0 hasta cambiar de CERO o de periodo.
-Write-Step "Esperando a que el backend (puerto $BackendPort) y el frontend respondan"
-$ready = $false
-for ($i = 0; $i -lt 90 -and -not $ready; $i++) {
-    $ready = (Test-Port $BackendPort) -and (Test-Port $FrontendPort)
-    if (-not $ready) { Start-Sleep -Seconds 1 }
+# El backend abre el puerto enseguida y reintenta la conexion con SQL Server;
+# /health dice si la base responde. El navegador solo se abre con la base
+# conectada: si no, el dashboard mostraria errores en lugar de datos.
+Write-Step "Esperando a que el backend confirme la base de datos (maximo $EsperaMaxima s)"
+$reloj = [Diagnostics.Stopwatch]::StartNew()
+$db = $null
+$viteOk = $false
+$avisado = 0
+while ($reloj.Elapsed.TotalSeconds -lt $EsperaMaxima) {
+    $db = Get-DbState
+    $viteOk = Test-Port $FrontendPort
+    if ($db -eq 'conectada' -and $viteOk) { break }
+    # Un aviso cada 15 s para que se vea que sigue esperando
+    $seg = [int]$reloj.Elapsed.TotalSeconds
+    if ($seg -ge $avisado + 15) {
+        $avisado = $seg
+        $estado = if ($null -eq $db) { 'el backend aun no responde' } elseif ($db -ne 'conectada') { "base de datos: $db" } else { 'esperando a Vite' }
+        Write-Warn "$seg s: $estado..."
+    }
+    Start-Sleep -Seconds 1
 }
-if (-not $ready) {
-    Write-Warn 'El backend o el frontend tardan en arrancar; revisa sus terminales. Abriendo el navegador de todas formas.'
+
+if ($db -ne 'conectada') {
+    if ($null -eq $db) {
+        Exit-WithError ("El backend no respondio en $EsperaMaxima s. Revisa la ventana 'VERTEX Backend'. " +
+            "Cuando funcione, abre $FrontendUrl a mano.")
+    }
+    Exit-WithError ("El backend responde, pero la base de datos sigue '$db' tras $EsperaMaxima s. " +
+        "Revisa el servicio $SqlService y la ventana 'VERTEX Backend' (muestra cada intento de conexion). " +
+        "Cuando conecte, abre $FrontendUrl a mano.")
 }
+Write-Ok "Base de datos conectada ($([int]$reloj.Elapsed.TotalSeconds) s)"
+if (-not $viteOk) {
+    Exit-WithError "Vite no respondio en el puerto $FrontendPort. Revisa la ventana 'VERTEX Frontend'."
+}
+
+# La primera consulta tras un rato sin uso es la mas lenta (SQL Server vuelve
+# a cargar los datos en memoria): que la pague el script y no el dashboard
+Write-Step 'Calentando las consultas del dashboard'
+foreach ($url in $Calentamiento) {
+    $t = [Diagnostics.Stopwatch]::StartNew()
+    try {
+        Invoke-RestMethod -Uri $url -TimeoutSec 60 | Out-Null
+        Write-Ok ("{0} ({1:N1} s)" -f ($url -replace '^.*/api/equipos/', ''), $t.Elapsed.TotalSeconds)
+    } catch {
+        Write-Warn ("{0} fallo ({1}); el dashboard lo reintentara." -f ($url -replace '^.*/api/equipos/', ''), $_.Exception.Message)
+    }
+}
+
 Start-Process $FrontendUrl
 Write-Ok 'Navegador abierto'
 

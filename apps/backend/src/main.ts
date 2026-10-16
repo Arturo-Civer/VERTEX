@@ -1,5 +1,5 @@
-import sql from 'mssql';
 import { createApp } from './app';
+import { conectarConReintentos } from './shared/db';
 
 const PORT = 3000;
 
@@ -15,8 +15,7 @@ async function main() {
   // Fail fast: the login cannot sign tokens without it
   requireEnv('JWT_SECRET');
 
-  // Global pool: services use `new sql.Request()` on it
-  await sql.connect({
+  const config = {
     server: requireEnv('DB_SERVER'),
     port: Number(process.env.DB_PORT ?? 1433),
     user: requireEnv('DB_USER'),
@@ -31,12 +30,16 @@ async function main() {
       // against a server with a trusted certificate
       trustServerCertificate: process.env.DB_TRUST_SERVER_CERTIFICATE !== 'false',
     },
-  });
-  console.log(`Conectado a SQL Server: ${process.env.DB_SERVER} / ${process.env.DB_NAME}`);
+  };
 
+  // The port opens at once: until SQL Server answers, /health reports
+  // db "sin conexión" and the data routes answer 503
   createApp().listen(PORT, () => {
     console.log(`VERTEX backend escuchando en http://localhost:${PORT}`);
   });
+
+  // Global pool (services use `new sql.Request()` on it), retried until it connects
+  await conectarConReintentos(config);
 }
 
 main().catch((err: unknown) => {
