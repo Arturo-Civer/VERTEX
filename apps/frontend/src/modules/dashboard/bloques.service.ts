@@ -1,4 +1,4 @@
-import { API_URL } from '../../shared/api';
+import { API_URL, ErrorTemporal, errorDeRespuesta } from '../../shared/api';
 import type { ValidationStatus } from '../../contracts/dashboard';
 import { esRango, periodoQuery } from './periodo';
 import type { Periodo } from './periodo';
@@ -50,13 +50,13 @@ export async function fetchBloques(codigo: string, periodo: Periodo, signal?: Ab
     });
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') throw err;
-    throw new Error(NETWORK_ERROR);
+    throw new ErrorTemporal(NETWORK_ERROR);
   }
 
   const body = (await res.json().catch(() => null)) as (BloquesData & { mensaje?: string }) | null;
 
   if (res.ok && body && Array.isArray(body.bloques)) return body;
-  throw new Error(body?.mensaje || GENERIC_ERROR);
+  throw errorDeRespuesta(res.status, body?.mensaje || GENERIC_ERROR);
 }
 
 // ── Demo mode (Netlify, no backend) ─────────────────────────

@@ -1,4 +1,4 @@
-import { API_URL } from '../../shared/api';
+import { API_URL, ErrorTemporal, errorDeRespuesta } from '../../shared/api';
 
 export interface EquipoInfo {
   codigo: string;
@@ -20,7 +20,7 @@ export async function fetchEquipo(codigo: string, signal?: AbortSignal): Promise
     res = await fetch(`${API_URL}/api/equipos/${encodeURIComponent(codigo)}`, { signal });
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') throw err;
-    throw new Error(NETWORK_ERROR);
+    throw new ErrorTemporal(NETWORK_ERROR);
   }
 
   const body = (await res.json().catch(() => null)) as
@@ -30,5 +30,5 @@ export async function fetchEquipo(codigo: string, signal?: AbortSignal): Promise
   if (res.ok && body?.encontrado && body.codigo && body.nombre) {
     return { codigo: body.codigo, nombre: body.nombre, area: body.area ?? '' };
   }
-  throw new Error(body?.mensaje || GENERIC_ERROR);
+  throw errorDeRespuesta(res.status, body?.mensaje || GENERIC_ERROR);
 }

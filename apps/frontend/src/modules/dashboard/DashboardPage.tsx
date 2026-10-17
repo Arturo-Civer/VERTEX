@@ -10,7 +10,7 @@ import type { DonutPeriodo } from './DonutPanel';
 import type { PeriodoFechas } from './PeriodoSelector';
 import { fetchEquipo } from './equipos.service';
 import type { CeroId, DonutData } from './donutSimulation';
-import { resolverRuta, textoRuta } from './jerarquiaDemo';
+import { resolverRuta } from './jerarquiaDemo';
 import { demoBloquesData, fetchBloques } from './bloques.service';
 import type { BloquesData } from './bloques.service';
 import { demoMedicionesData, fetchMediciones, fetchMedicionesDetalle, minutosDetalle } from './operacion.service';
@@ -28,7 +28,7 @@ import { TrendVariablePicker } from './TrendVariablePicker';
 import { lineaReferencia } from './referenciasTendencia';
 import styles from './dashboard.module.css';
 
-type Notice = { text: string; error?: boolean };
+type Notice = { text: string; error?: boolean; reintentar?: () => void };
 
 type DonutView = DonutData & { periodo?: DonutPeriodo; notice?: Notice };
 
@@ -85,7 +85,7 @@ function donutFromBloques(state: BackendState<BloquesData>, cero: string): Donut
   const totalHours = segments.reduce((sum, s) => sum + s.hours, 0);
   const base = { segments, totalHours, totalLabel: mockData.donut.totalLabel };
 
-  if (state.status === 'error') return { ...base, notice: { text: state.message, error: true } };
+  if (state.status === 'error') return { ...base, notice: { text: state.message, error: true, reintentar: state.reintentar } };
   if (state.status !== 'data') return { ...base, notice: { text: 'Cargando horas…' } };
   const { desde, fecha_referencia, ultimo_registro } = state.data;
   if (!desde || !fecha_referencia) return { ...base, notice: { text: `Sin mediciones de ${cero} en la base de datos` } };
@@ -114,16 +114,20 @@ function fechasDelPeriodo(periodo: Periodo, ultimos: BloquesData | null): Period
   return { desde: ultimos.desde.slice(0, 10), hasta: ultimoDia(ultimos.fecha_referencia).slice(0, 10), min, max };
 }
 
-/** localStorage key of the chosen tree route (ids from the root down) */
+/**
+ * sessionStorage key of the chosen tree route (ids from the root down). It
+ * belongs to the browser tab: kept across reloads (F5), but a new tab (e.g.
+ * the "Iniciar VERTEX" shortcut) starts at the root. logout() removes it too.
+ */
 const RUTA_KEY = 'vx_ruta';
 
 /**
  * Saved route, if every level still exists in the tree data; otherwise the
- * root (empty route). localStorage may be unavailable: then also the root.
+ * root (empty route). sessionStorage may be unavailable: then also the root.
  */
 function rutaGuardada(): string[] {
   try {
-    const ruta: unknown = JSON.parse(localStorage.getItem(RUTA_KEY) ?? '[]');
+    const ruta: unknown = JSON.parse(sessionStorage.getItem(RUTA_KEY) ?? '[]');
     if (Array.isArray(ruta) && ruta.every((id) => typeof id === 'string') && resolverRuta(ruta)) return ruta;
   } catch {
     // unreadable or blocked storage: start at the root
@@ -172,7 +176,7 @@ export function DashboardPage({ onLogout }: DashboardPageProps) {
   function cambiarRuta(siguiente: string[]) {
     setRuta(siguiente);
     try {
-      localStorage.setItem(RUTA_KEY, JSON.stringify(siguiente));
+      sessionStorage.setItem(RUTA_KEY, JSON.stringify(siguiente));
     } catch {
       // storage blocked (private mode): the route just is not kept
     }
@@ -296,7 +300,7 @@ export function DashboardPage({ onLogout }: DashboardPageProps) {
     trendNotice = { text: 'Cargando mediciones…' };
   } else if (mediciones.status === 'error') {
     trendPoints = [];
-    trendNotice = { text: mediciones.message, error: true };
+    trendNotice = { text: mediciones.message, error: true, reintentar: mediciones.reintentar };
   } else if (puntosMedidos) {
     trendPoints = puntosMedidos.points;
     trendPuntoMs = puntosMedidos.puntoMs;
@@ -304,7 +308,6 @@ export function DashboardPage({ onLogout }: DashboardPageProps) {
   }
   // Red line: DEMO value, or UMBRAL_MAX of ConfiguracionVariables with real data
   const referencia = lineaReferencia(variable.id, mediciones.status === 'data' ? mediciones.data.umbral : null);
-  const rutaTexto = textoRuta(ruta);
 
   return (
     <div className={styles.dashboard}>
@@ -328,10 +331,6 @@ export function DashboardPage({ onLogout }: DashboardPageProps) {
       <ArbolMovil ruta={ruta} onRutaChange={cambiarRuta} verificacion={ceroCheck} />
 
       <main className={styles.main}>
-        {/* Route of the chosen equipment: information only, navigation is the tree */}
-        <p className={styles.rutaTexto} title={rutaTexto || undefined}>
-          {rutaTexto || 'Ningún equipo elegido'}
-        </p>
         <div className={styles.pageTitle}>
           <h1>Resumen operativo</h1>
         </div>

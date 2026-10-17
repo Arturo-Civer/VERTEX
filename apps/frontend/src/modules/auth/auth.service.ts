@@ -1,7 +1,33 @@
 import { API_URL, DEMO_MODE } from '../../shared/api';
 
-/** localStorage key holding the session token (backend JWT or demo token) */
+/**
+ * sessionStorage key holding the session token (backend JWT or demo token).
+ * sessionStorage belongs to the browser tab: a reload (F5) keeps the session,
+ * but every new tab or window (e.g. the "Iniciar VERTEX" shortcut) asks for
+ * the login again.
+ */
 export const TOKEN_KEY = 'vx_token';
+
+/** Saves the token for this tab (blocked storage: the session lasts until a reload) */
+function guardarToken(token: string) {
+  try {
+    sessionStorage.setItem(TOKEN_KEY, token);
+  } catch {
+    // storage blocked (private mode)
+  }
+}
+
+/** Removes every vx_ key of a storage (blocked storage: nothing was saved) */
+function borrarClaves(almacen: () => Storage) {
+  try {
+    const storage = almacen();
+    for (const key of Object.keys(storage)) {
+      if (key.startsWith('vx_')) storage.removeItem(key);
+    }
+  } catch {
+    // storage blocked
+  }
+}
 
 /*
  * Demo mode (Netlify presentations): no backend, the credentials come from
@@ -37,7 +63,7 @@ function demoLogin(credential: string, password: string): { token: string } {
 
   const exp = Math.floor(Date.now() / 1000) + DEMO_SESSION_SECONDS;
   const token = `${base64Url({ alg: 'none', typ: 'JWT' })}.${base64Url({ demo: true, exp })}.demo`;
-  localStorage.setItem(TOKEN_KEY, token);
+  guardarToken(token);
   return { token };
 }
 
@@ -65,7 +91,7 @@ export async function login(credential: string, password: string): Promise<{ tok
   const body = (await res.json().catch(() => null)) as { token?: string; error?: string } | null;
 
   if (res.ok && body?.token) {
-    localStorage.setItem(TOKEN_KEY, body.token);
+    guardarToken(body.token);
     return { token: body.token };
   }
 
@@ -80,7 +106,15 @@ export async function login(credential: string, password: string): Promise<{ tok
  * removed). Only reads the exp claim: the backend still verifies the token.
  */
 export function getStoredToken(): string | null {
-  const token = localStorage.getItem(TOKEN_KEY);
+  // Earlier versions kept the token and the tree route in localStorage, which
+  // outlived the tab: nothing is kept there any more
+  borrarClaves(() => localStorage);
+  let token: string | null = null;
+  try {
+    token = sessionStorage.getItem(TOKEN_KEY);
+  } catch {
+    // storage blocked: no saved session
+  }
   if (!token) return null;
   try {
     const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))) as {
@@ -90,10 +124,16 @@ export function getStoredToken(): string | null {
   } catch {
     // fall through: unreadable token
   }
-  localStorage.removeItem(TOKEN_KEY);
+  // The session ended: its dashboard state goes too
+  logout();
   return null;
 }
 
+/**
+ * Ends the session: removes the token and every dashboard state saved in the
+ * browser (all vx_ keys, e.g. vx_ruta), so the next login starts from scratch.
+ */
 export function logout() {
-  localStorage.removeItem(TOKEN_KEY);
+  borrarClaves(() => sessionStorage);
+  borrarClaves(() => localStorage);
 }

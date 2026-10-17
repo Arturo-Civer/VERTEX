@@ -6,11 +6,12 @@ import { DashboardPage } from './modules/dashboard/DashboardPage';
 type View = 'login' | 'dashboard';
 
 function App() {
-  // A valid (not expired) token from a previous visit skips the login
+  // A valid (not expired) token of this tab (e.g. after F5) skips the login;
+  // a new tab or window always starts at the login
   const [view, setView] = useState<View>(() => (getStoredToken() ? 'dashboard' : 'login'));
 
   if (view === 'login') {
-    // auth.service already stored the token in localStorage (vx_token)
+    // auth.service already stored the token in sessionStorage (vx_token)
     return <AuthFlow onSuccess={() => setView('dashboard')} />;
   }
 

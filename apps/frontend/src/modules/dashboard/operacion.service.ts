@@ -1,4 +1,4 @@
-import { API_URL } from '../../shared/api';
+import { API_URL, ErrorTemporal, errorDeRespuesta } from '../../shared/api';
 import type { TrendVariable } from '../../contracts/dashboard';
 import { demoMarca } from './bloques.service';
 import type { BloquesData } from './bloques.service';
@@ -53,11 +53,11 @@ async function getJson<T>(codigo: string, ruta: string, genericError: string, si
     res = await fetch(`${API_URL}/api/equipos/${encodeURIComponent(codigo)}/${ruta}`, { signal });
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') throw err;
-    throw new Error(NETWORK_ERROR);
+    throw new ErrorTemporal(NETWORK_ERROR);
   }
   const body = (await res.json().catch(() => null)) as (T & { mensaje?: string }) | null;
   if (res.ok && body) return body;
-  throw new Error(body?.mensaje || genericError);
+  throw errorDeRespuesta(res.status, body?.mensaje || genericError);
 }
 
 /** GET /api/equipos/:codigo/mediciones for the shared period */
@@ -145,10 +145,17 @@ export async function fetchMedicionesDetalle(
 
   const resultados: MedicionesData[] = [];
   let siguiente = 0;
+  // After one range fails no more are asked (the whole request fails or is retried)
+  let fallo = false;
   const trabajador = async () => {
-    while (siguiente < tramos.length) {
+    while (!fallo && siguiente < tramos.length) {
       const i = siguiente++;
-      resultados[i] = await fetchMediciones(codigo, variable, tramos[i], signal);
+      try {
+        resultados[i] = await fetchMediciones(codigo, variable, tramos[i], signal);
+      } catch (err) {
+        fallo = true;
+        throw err;
+      }
     }
   };
   await Promise.all(Array.from({ length: Math.min(PETICIONES_PARALELAS, tramos.length) }, trabajador));

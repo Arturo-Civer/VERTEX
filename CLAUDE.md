@@ -10,12 +10,13 @@ Express y base de datos SQL Server.
 - **Login** (`src/modules/auth/`)
   - `AuthFlow.tsx`: panel de marca (desktop) + tarjeta de login.
   - `LoginForm.tsx`: campo "Usuario o correo" + contraseña con botón mostrar/ocultar, estados de carga y error.
-  - `auth.service.ts`: `login()`, `getStoredToken()` (descarta tokens vencidos) y `logout()`. Token en `localStorage` con clave `vx_token`.
-    - `logout()` borra todas las claves `vx_` (token y `vx_ruta`); un token vencido también llama a `logout()`. Al volver a entrar, el árbol empieza en las cinco áreas cerradas y el dashboard en su estado inicial (período, variable y Resumen / Detalle no se guardan en el navegador).
+  - `auth.service.ts`: `login()`, `getStoredToken()` (descarta tokens vencidos) y `logout()`. Token en `sessionStorage` con clave `vx_token`: es de la pestaña, así que F5 conserva la sesión, pero **cada pestaña o ventana nueva (acceso directo "Iniciar VERTEX", otra pestaña, tras cerrar el navegador) pide login**. "Duplicar pestaña" de Chrome copia la sesión.
+    - `getStoredToken()` borra las claves `vx_` que versiones anteriores dejaron en `localStorage` (ya no se guarda nada ahí).
+    - `logout()` borra todas las claves `vx_` (token y `vx_ruta`) de `sessionStorage` y `localStorage`; un token vencido también llama a `logout()`. Al volver a entrar, el árbol empieza en las cinco áreas cerradas y el dashboard en su estado inicial (período, variable y Resumen / Detalle no se guardan en el navegador).
   - Dos modos:
     - **Normal:** `POST {VITE_API_URL}/api/identity/login`.
     - **Demo** (`VITE_DEMO_MODE=true`, para Netlify): valida contra `VITE_DEMO_EMAIL` / `VITE_DEMO_PASSWORD` sin backend y genera un token local `{ demo: true, exp: +8h }` sin firma real.
-  - `App.tsx`: vista `'login' | 'dashboard'`. Si hay un token vigente, entra directo al dashboard.
+  - `App.tsx`: vista `'login' | 'dashboard'`. Si la pestaña tiene un token vigente (p. ej. tras F5), entra directo al dashboard.
 - **Dashboard** (`src/modules/dashboard/`): en modo normal, la dona, el estado del motor, la tendencia y la tabla de eventos leen la base; el resto sigue simulado (`mockData.ts`, `donutSimulation.ts`). En modo demo todo es simulado.
   - **Árbol de equipos** (`ArbolEquipos.tsx`) en lugar de las antiguas pestañas (Resumen / Motores / Mantenimiento / Producción) y del selector de CERO: Área → Sección → Grupo → Equipo → Componente.
     - **⚠ DEMO:** la estructura está en `jerarquiaDemo.ts` (`DEFINICION`); se reemplazará por tablas en la base. Solo los CERO-010…013 tienen datos (`cero`) y solo su Motor tiene sensores (`sensores`).
@@ -24,7 +25,7 @@ Express y base de datos SQL Server.
     - Cuadro "+" / "−" de 11 px (texto de 13 px), borde de 1 px, esquinas de 2 px y signo de líneas de 1 px (`.arbolSigno`, CSS); el área de clic es mayor que el cuadro (`::after`, más en el panel del teléfono). Un componente elegido también tiene "−".
     - Sangría de 1ch por nivel, nombres largos con "…" y `title`; componente elegido resaltado con `--vx-accent`. Botones nativos (Tab / Enter); el foco queda en el árbol tras cada cambio (en la opción afectada o en la primera hija).
     - Desktop y teléfono horizontal: en el Sidebar (que conserva Cerrar sesión). Teléfono vertical: `ArbolMovil`, una línea con la ruta bajo la cabecera que se despliega al tocarla y se pliega sola al elegir un equipo o componente.
-    - La ruta se guarda en `localStorage` (`vx_ruta`) y se restaura al recargar con la sesión abierta; si un nivel ya no existe, vuelve a la raíz. Cerrar sesión la borra.
+    - La ruta se guarda en `sessionStorage` (`vx_ruta`): se restaura al recargar (F5) en la misma pestaña; una pestaña nueva empieza en el nivel cero. Si un nivel ya no existe, vuelve a la raíz. Cerrar sesión la borra.
     - `seleccionDe()` (`DashboardPage.tsx`): sin equipo, "Elige un equipo para ver su información"; componente sin sensores, "Sin mediciones para este componente"; equipo sin datos, "Sin mediciones para este equipo" (en las cuatro tarjetas). Un CERO o su Motor cargan el dashboard de ese CERO con los mismos servicios y endpoints.
     - Verificación del CERO elegido (`GET /api/equipos/:codigo` con `useBackend`, también al restaurar la ruta): spinner, ✓ verde o "!" rojo con el mensaje bajo el equipo en el árbol. En modo demo no se consulta.
     - Arriba del dashboard solo el título "Resumen operativo" (la ruta ya está en el árbol); en teléfono vertical la ruta se ve en la línea del panel plegado.

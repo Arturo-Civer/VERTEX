@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import type { CSSProperties } from 'react';
-import { JERARQUIA_DEMO, resolverRuta, textoRuta } from './jerarquiaDemo';
+import type { CSSProperties, ReactNode } from 'react';
+import { JERARQUIA_DEMO, textoRuta } from './jerarquiaDemo';
 import type { NodoArbol } from './jerarquiaDemo';
 import styles from './dashboard.module.css';
 
@@ -45,105 +45,106 @@ function Verificacion({ estado }: { estado: CeroCheck }) {
 }
 
 /**
- * Equipment tree (Área → Sección → Grupo → Equipo → Componente). Only the
- * route is shown, each level with "−", and under it the children of its last
- * level, each with "+"; the sisters of a chosen option are hidden.
- * - Choosing a child (name or "+") adds it to the route.
- * - The name of a route level makes it the last one (its children show).
- * - The "−" of a route level removes it (its sisters show again).
- * Going back always drops the lower levels: they must be chosen again.
+ * Equipment tree (Área → Sección → Grupo → Equipo → Componente). In each
+ * level at most one option is open (it is in the route, with "−"):
+ * - the options above it stay visible, closed with "+";
+ * - the options below it are hidden, and its children show under it.
+ * Opening another option (name or "+") closes the open one; the name of an
+ * open option drops the levels under it; its "−" closes it and shows the
+ * whole level again, closed. Lower selections are never kept: they must be
+ * chosen again.
  */
 export function ArbolEquipos({ ruta, onRutaChange, verificacion }: ArbolEquiposProps) {
-  const nodos = resolverRuta(ruta) ?? [];
-  const ultimo = nodos[nodos.length - 1];
-  const opciones = ultimo ? (ultimo.hijos ?? []) : JERARQUIA_DEMO;
   const lista = useRef<HTMLUListElement>(null);
 
-  // The clicked button may disappear (its sisters hide): keep the keyboard
-  // focus in the tree, on the last level of the route (or the first option)
-  const enfocar = useRef(false);
+  // The clicked button may disappear: keep the keyboard focus in the tree,
+  // on the node chosen by the last change
+  const enfocar = useRef<string | null>(null);
   useEffect(() => {
-    if (!enfocar.current) return;
-    enfocar.current = false;
-    lista.current?.querySelector<HTMLElement>('[data-foco]')?.focus();
+    const id = enfocar.current;
+    if (!id) return;
+    enfocar.current = null;
+    lista.current?.querySelector<HTMLElement>(`[data-nodo="${CSS.escape(id)}"]`)?.focus();
   }, [ruta]);
 
-  const cambiar = (siguiente: string[], elegido?: NodoArbol) => {
-    enfocar.current = true;
+  const cambiar = (siguiente: string[], foco: string, elegido?: NodoArbol) => {
+    enfocar.current = foco;
     onRutaChange(siguiente, elegido);
   };
 
-  return (
-    <ul ref={lista} className={styles.arbol} aria-label="Equipos de la planta">
-      {nodos.map((n, i) => {
-        const esUltimo = i === nodos.length - 1;
-        // A chosen leaf (a component): bullet instead of "−", highlighted
-        const hoja = esUltimo && !n.hijos?.length;
-        const error = n.cero && verificacion.status === 'error' ? verificacion.message : null;
-        return (
-          <li key={n.id} className={styles.arbolItem}>
-            <div className={`${styles.arbolFila} ${styles.arbolRuta} ${hoja ? styles.arbolElegido : ''}`} style={sangria(i)}>
-              {hoja ? (
-                <span className={styles.arbolPunto} aria-hidden="true">
-                  •
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  className={styles.arbolBoton}
-                  aria-label={`Contraer ${n.nombre}`}
-                  aria-expanded="true"
-                  title={`Contraer ${n.nombre}`}
-                  onClick={() => cambiar(ruta.slice(0, i))}
-                >
-                  −
-                </button>
-              )}
+  /** Rows of one level (`nivel` = its depth) and, under its open option, the next levels */
+  const filas = (opciones: NodoArbol[], nivel: number): ReactNode[] => {
+    const abierta = opciones.findIndex((o) => o.id === ruta[nivel]);
+    const visibles = abierta < 0 ? opciones : opciones.slice(0, abierta + 1);
+    return visibles.flatMap((o, k) => {
+      if (k !== abierta) {
+        // Closed: opening it replaces the route from this level down
+        const abrir = () => cambiar([...ruta.slice(0, nivel), o.id], o.hijos?.[0]?.id ?? o.id, o);
+        return [
+          <li key={o.id} className={styles.arbolItem}>
+            <div className={styles.arbolFila} style={sangria(nivel)}>
               <button
                 type="button"
-                className={styles.arbolNombre}
-                title={n.nombre}
-                aria-current={esUltimo ? 'location' : undefined}
-                data-foco={esUltimo && !opciones.length ? '' : undefined}
-                onClick={() => cambiar(ruta.slice(0, i + 1))}
+                className={styles.arbolBoton}
+                aria-label={`Abrir ${o.nombre}`}
+                aria-expanded={o.hijos?.length ? false : undefined}
+                title={`Abrir ${o.nombre}`}
+                onClick={abrir}
               >
-                {n.nombre}
+                <span className={styles.arbolSigno} data-signo="+" aria-hidden="true" />
               </button>
-              {n.cero && <Verificacion estado={verificacion} />}
+              <button type="button" className={styles.arbolNombre} title={o.nombre} data-nodo={o.id} onClick={abrir}>
+                {o.nombre}
+              </button>
             </div>
-            {error && (
-              <p className={styles.arbolError} style={sangria(i + 2)} role="alert">
-                {error}
-              </p>
-            )}
-          </li>
-        );
-      })}
-      {opciones.map((o, k) => (
+          </li>,
+        ];
+      }
+
+      const hijos = o.hijos ?? [];
+      const esUltimo = nivel === ruta.length - 1;
+      // An open leaf (a chosen component): highlighted
+      const hoja = !hijos.length;
+      const error = o.cero && verificacion.status === 'error' ? verificacion.message : null;
+      return [
         <li key={o.id} className={styles.arbolItem}>
-          <div className={styles.arbolFila} style={sangria(nodos.length)}>
+          <div className={`${styles.arbolFila} ${styles.arbolRuta} ${hoja ? styles.arbolElegido : ''}`} style={sangria(nivel)}>
             <button
               type="button"
               className={styles.arbolBoton}
-              aria-label={`Elegir ${o.nombre}`}
-              aria-expanded="false"
-              title={`Elegir ${o.nombre}`}
-              onClick={() => cambiar([...ruta, o.id], o)}
+              aria-label={`Cerrar ${o.nombre}`}
+              aria-expanded={hoja ? undefined : true}
+              title={`Cerrar ${o.nombre}`}
+              onClick={() => cambiar(ruta.slice(0, nivel), o.id)}
             >
-              +
+              <span className={styles.arbolSigno} data-signo="−" aria-hidden="true" />
             </button>
             <button
               type="button"
               className={styles.arbolNombre}
               title={o.nombre}
-              data-foco={k === 0 ? '' : undefined}
-              onClick={() => cambiar([...ruta, o.id], o)}
+              aria-current={esUltimo ? 'location' : undefined}
+              data-nodo={o.id}
+              onClick={() => cambiar(ruta.slice(0, nivel + 1), hijos[0]?.id ?? o.id)}
             >
               {o.nombre}
             </button>
+            {o.cero && <Verificacion estado={verificacion} />}
           </div>
-        </li>
-      ))}
+          {error && (
+            <p className={styles.arbolError} style={sangria(nivel + 2)} role="alert">
+              {error}
+            </p>
+          )}
+        </li>,
+        ...filas(hijos, nivel + 1),
+      ];
+    });
+  };
+
+  return (
+    <ul ref={lista} className={styles.arbol} aria-label="Equipos de la planta">
+      {filas(JERARQUIA_DEMO, 0)}
     </ul>
   );
 }

@@ -233,41 +233,71 @@
 .arbolFila {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   min-width: 0;
   padding-left: calc(var(--nivel, 0) * 1ch);
 }
 
-.arbolBoton,
-.arbolPunto {
+/* "+" / "−": a small box (smaller than the letters) like a folder tree.
+   The click area reaches beyond the box (::after) without showing it. */
+.arbolBoton {
+  position: relative;
   flex: 0 0 auto;
-  width: 18px;
-  height: 18px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: 11px;
+  height: 11px;
+  margin: 0 1px 0 2px;
   padding: 0;
-  border-radius: 4px;
-  color: inherit;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1;
-}
-
-.arbolBoton {
-  border: 1px solid currentColor;
+  border: 0;
   background: transparent;
-  opacity: 0.8;
+  color: inherit;
+  opacity: 0.75;
   cursor: pointer;
   touch-action: manipulation;
+}
+
+.arbolBoton::after {
+  content: '';
+  position: absolute;
+  inset: -8px -3px;
+}
+
+.arbolSigno {
+  position: relative;
+  box-sizing: border-box;
+  width: 11px;
+  height: 11px;
+  border: 1px solid currentColor;
+  border-radius: 2px;
+}
+
+/* Thin sign, centered: horizontal bar, plus a vertical one for "+" */
+.arbolSigno::before,
+.arbolSigno[data-signo='+']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  background: currentColor;
+}
+
+.arbolSigno::before {
+  width: 5px;
+  height: 1px;
+}
+
+.arbolSigno[data-signo='+']::after {
+  width: 1px;
+  height: 5px;
 }
 
 .arbolNombre {
   flex: 1 1 auto;
   min-width: 0;
   min-height: 28px;
-  padding: 2px 6px;
+  padding: 2px 5px;
   border: 0;
   border-radius: 4px;
   background: transparent;
@@ -424,10 +454,9 @@
   min-height: 36px;
 }
 
-.arbolMovilPanel .arbolBoton,
-.arbolMovilPanel .arbolPunto {
-  width: 24px;
-  height: 24px;
+/* Wider click area on the phone; the box keeps its size */
+.arbolMovilPanel .arbolBoton::after {
+  inset: -12px -5px;
 }
 
 @media (min-width: 768px) and (min-height: 501px), (orientation: landscape) and (max-height: 500px) {
@@ -486,26 +515,6 @@
     gap: 8px;
     font-size: 13px;
     white-space: nowrap;
-  }
-}
-
-/* ── Route of the chosen equipment, top of the dashboard (text only) ── */
-/* Phone portrait shows it in the tree panel line instead */
-.rutaTexto {
-  display: none;
-  margin: 0 0 4px;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--vx-text-muted);
-}
-
-@media (min-width: 768px) and (min-height: 501px), (orientation: landscape) and (max-height: 500px) {
-  .rutaTexto {
-    display: block;
-    flex-shrink: 0;
   }
 }
 
@@ -1868,6 +1877,33 @@
 
 .chartNoticeError {
   color: var(--vx-danger);
+}
+
+/* "Reintentar" after an error message (donut, trend, events table) */
+.botonReintentar {
+  margin-left: 8px;
+  padding: 2px 10px;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  background: var(--vx-white);
+  color: var(--vx-secondary);
+  font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+  pointer-events: auto;
+}
+
+.botonReintentar:focus-visible {
+  outline: 2px solid var(--vx-secondary);
+  outline-offset: 1px;
+}
+
+@media (hover: hover) {
+  .botonReintentar:hover {
+    background: var(--vx-accent);
+  }
 }
 
 /* ── Map placeholder ──────────────────────────────────────── */

@@ -4,6 +4,7 @@ import type { BloquesData } from './bloques.service';
 import { esDias } from './periodo';
 import type { Periodo } from './periodo';
 import type { BackendState } from './useBackend';
+import { BotonReintentar } from './BotonReintentar';
 import styles from './dashboard.module.css';
 
 /** Fixed periods of the table: they set the same shared period as the donut selector */
@@ -99,6 +100,7 @@ export function EventsSummary({ state, periodo, onPeriodoChange }: EventsSummary
         {state.status === 'error' && (
           <div className={styles.filterError} role="alert">
             {state.message}
+            {state.reintentar && <BotonReintentar onClick={state.reintentar} />}
           </div>
         )}
 

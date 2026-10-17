@@ -1,6 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import type { ValidationStatus } from '../../contracts/dashboard';
+import { BotonReintentar } from './BotonReintentar';
 import styles from './dashboard.module.css';
 
 /** Resumen: running time only, whole period in view. Detalle: real time, scrolls */
@@ -51,7 +52,7 @@ interface TrendChartProps {
   /** State blocks of the period, any order (Detalle) */
   estados?: TrendEstado[];
   /** Loading / empty / error message, over the plot */
-  notice?: { text: string; error?: boolean };
+  notice?: { text: string; error?: boolean; reintentar?: () => void };
 }
 
 // Existing --vx-* colors (style, not presentation attributes, so var() works);
@@ -804,6 +805,7 @@ export function TrendChart({
             role={notice.error ? 'alert' : 'status'}
           >
             {notice.text}
+            {notice.reintentar && <BotonReintentar onClick={notice.reintentar} />}
           </p>
         )}
       </div>

@@ -1,5 +1,6 @@
 import { useId, useState, useSyncExternalStore } from 'react';
 import type { DonutSegment, MotorInfo, TimeUnit, ValidationStatus } from '../../contracts/dashboard';
+import { BotonReintentar } from './BotonReintentar';
 import styles from './dashboard.module.css';
 
 /** Evaluated period shown under the donut's center value */
@@ -18,7 +19,7 @@ interface DonutPanelProps {
   motorInfo: MotorInfo;
   periodo?: DonutPeriodo;
   /** Loading / empty / error message shown under the legend */
-  notice?: { text: string; error?: boolean };
+  notice?: { text: string; error?: boolean; reintentar?: () => void };
 }
 
 const TIME_UNITS: {
@@ -200,6 +201,7 @@ export function DonutPanel({ segments, totalHours, motorInfo, periodo, notice }:
           role={notice.error ? 'alert' : 'status'}
         >
           {notice.text}
+          {notice.reintentar && <BotonReintentar onClick={notice.reintentar} />}
         </p>
       )}
     </div>
